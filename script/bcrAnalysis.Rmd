@@ -1,0 +1,82 @@
+---
+title: "pip20_no8 BCR vj heatmap"
+author: "HX"
+date: "16/May/2022"
+output: html_document
+---
+
+# aims
+-  plot the V/J usage for heavy or light chain
+-  plot the biased V gene usage for heavy and light
+
+
+# load the libraries
+
+```{r}
+suppressPackageStartupMessages({
+
+  library(ggplot2)
+  library(RColorBrewer)
+  library(tidyverse)
+  library(pheatmap)
+  library(Seurat)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(sjPlot)
+   library(ggpubr)
+  library(SingleR)
+  source("/home/hohu/Desktop/LinSeq/script/linkseqFunctions.R")
+})
+```
+
+ 
+# globle variable
+
+```{r}
+file_pathBcr<-"/home/hohu/Desktop/LinSeq/data/bcr_lv1/"
+# file_pathGex<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/result/summary/pip20/no1/"
+file_pathGex<- "/home/hohu/Desktop/LinSeq/data/sc/"
+
+output_path <- "/home/hohu/Desktop/LinSeq/result/plot/no6/fig5cd/"
+ifelse(!dir.exists(output_path), dir.create(output_path, recursive = T),FALSE)
+
+output_summary<-"/home/hohu/Desktop/LinSeq/result/summary/no6/fig5cd/"
+ifelse(!dir.exists(output_summary), dir.create(output_summary, recursive = T),FALSE)
+```
+
+
+
+# V/J gene usage for heavy or light 
+
+```{r}
+#fileList <- c("HD2B960","HD2B1500","HD2B3600","p36T1","p36T2","p36T4")
+fileList<- c("p36T4")
+
+summary_scBcr <- heatmap_VJH(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+                             rdsInputPath=file_pathGex,outputPath =output_path,type="heavy",vjSummary=output_summary)
+
+summary_scBcr <- heatmap_VJH(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+                             rdsInputPath=file_pathGex,outputPath = output_path,type="light",vjSummary=output_summary)
+ 
+```
+
+ 
+
+
+# biased V gene usage
+
+```{r}
+
+fileList <- c("HD2B960","HD2B1500","HD2B3600","p36T1","p36T2","p36T4")
+
+summary_scBcr <- heatmap_VJH(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+                                      rdsInputPath=file_pathGex,outputPlot = ouput_path,
+                             outputSummary=output_summary,type="HL")
+```
+
+
+
+# print session infor
+```{r}
+sessionInfo()
+```

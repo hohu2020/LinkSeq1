@@ -1,0 +1,59 @@
+
+# aims
+   - plot the percentage of sc with matched heavy and light chain 
+
+# load library
+
+```{r}
+
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(scales))
+suppressPackageStartupMessages(library(dplyr))
+source("/home/hohu/Desktop/LinSeq/script/BcrPreprocessFunction.R")
+ 
+
+```
+
+
+# global variable
+
+```{r}
+# global variable
+
+#  pre-processed BCR (consensus collapsed,lv1 corrected ) as input
+file_pathBcr<- "/home/hohu/Desktop/LinSeq/result/summary/no4/"
+# scRNAseq RDS file (rm empty/low quality cells)
+#file_pathGex<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/data/from_xiaoli/singleR/rename/"
+file_pathGex <- "/home/hohu/Desktop/LinSeq/result/summary/scPreprocessNo1/"
+
+output_path <- "/home/hohu/Desktop/LinSeq/result/plot/no5/"
+ifelse(!dir.exists(output_path), dir.create(output_path, recursive = T),FALSE)
+output_summary <- "/home/hohu/Desktop/LinSeq/result/summary/no5/"
+ifelse(!dir.exists(output_summary), dir.create(output_summary, recursive = T),FALSE)
+
+```
+
+
+# MAIN 
+
+```{r}
+
+fileList<- c("HD2B1500","HD2B3600","HD2B960","p36T1","p36T2","p36T4")
+
+summary_scBcr <- summary_scMatchToBcrHL(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+                                        rdsInputPath=file_pathGex,outputPath=output_path,outputSummary=output_summary)
+
+```
+
+
+
+
+# print session infor
+```{r}
+sessionInfo()
+```
+
+
+

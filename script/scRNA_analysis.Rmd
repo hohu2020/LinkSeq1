@@ -1,0 +1,775 @@
+---
+title: "pip22c_no2 sc preprocess and integration"
+author: "HX"
+date: "14/May/2022"
+output: html_document
+---
+ 
+# aims
+   - sc scale and normalization
+   - sc integration: 
+      all sc integration; 
+      pure B cell integration(used for down stream DEGs analysis)
+ 
+# comments: 
+  - this integrated data is used for downstream integration based analysis: no2, no5, no6
+  
+# load library 
+
+```{r}
+
+library(Seurat)
+library(patchwork)
+library(SingleR)
+library("celldex")
+library(sjPlot)
+library(scales)
+library(tidyverse)
+library(cowplot)
+source("/home/hohu/Desktop/LinSeq/script/linkseqFunctions.R")
+
+```
+
+
+# SingleR cell type prediction and split sc for integration
+ 
+# global variable 
+
+```{r}
+##==============================================================================================####
+# singR prediction and bcr integration to meta
+# only predict the label.main , because label.fine already exist in sc from xiaoli
+ 
+outputPlot<- "/home/hohu/Desktop/LinSeq/result/plot/scPreprocessNo2/"
+ifelse(!dir.exists(outputPlot),dir.create(outputPlot, recursive = T),FALSE)
+
+outputSummary<- "/home/hohu/Desktop/LinSeq/result/summary/scPreprocessNo2/"
+ifelse(!dir.exists(outputSummary),dir.create(outputSummary, recursive = T),FALSE)
+
+bcrInputPath<-"/home/hohu/Desktop/LinSeq/data/bcr_lv1/"
+rdsInputPath<- "/home/hohu/Desktop/LinSeq/data/sc/"
+list.files(rdsInputPath)
+
+```
+
+
+
+
+```{r}
+
+
+fileList<- c("HD2B1500","HD2B3600","HD2B960","p36T1","p36T2","p36T4","p45T2","p45T5","p16T1B","p18T1")
+newName<- c("HD1","HD2","HD1_stD2","p36D4","p36D45","p36D169","p45D24","p45D164","p16D9","p18D13")
+
+
+
+# MAIN 
+
+combineScBcr<- combineSc_Bcr_singleR(file_list=fileList, output_summary=outputSummary,
+                                     inputBcr=bcrInputPath,inputSc=rdsInputPath)
+#######
+# separate sc 
+#######
+sapply(combineScBcr, dim)
+
+HD1_sc <- combineScBcr[["HD1"]] 
+HD2_sc <- combineScBcr[["HD2"]]
+HD1_stD2_sc <- combineScBcr[["HD1_stD2"]]
+p36D1_sc <- combineScBcr[["p36D4"]]
+p36D42_sc <- combineScBcr[["p36D45"]]
+p36D166_sc <- combineScBcr[["p36D169"]]
+p45D16_sc <- combineScBcr[["p45D24"]] 
+p45D156_sc <- combineScBcr[["p45D164"]] 
+p16D2B_sc <- combineScBcr[["p16D9"]] 
+p18D13_sc <- combineScBcr[["p18D13"]]
+
+####################
+#  merge all sc
+####################
+# all sc combine
+sc_combine <- merge(HD1_sc,y=c( HD1_stD2_sc,HD2_sc,p36D1_sc,p36D42_sc,p36D166_sc,p45D16_sc,p45D156_sc,p16D2B_sc,p18D13_sc),
+                    add.cell.ids = c("HD1","HD1_stD2","HD2","p36D4", "p36D45", "p36D169","p45D24","p45D164","p16D9","p18D13"), project="covid")
+
+table(sc_combine$label.main,sc_combine$sample)
+ 
+sc_combine$sample <- factor(sc_combine$sample, levels = c("HD2","HD1","HD1_stD2","p16D9","p18D13" ,"p36D4", "p36D45", "p36D169","p45D24","p45D164"))
+
+```
+
+
+ 
+# Sc integration 
+integrate sc data using different combination 
+-1a.  All sc samples, all cells
+
+```{r}
+
+
+####################
+# normalization  
+####################
+
+# split the dataset into a list of two seurat objects (stim and CTRL)
+merge_split <- SplitObject(sc_combine, split.by = "sample")
+
+# normalize and identify variable features for each dataset independently
+merge_split.list <- lapply(X = merge_split, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+# select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = merge_split.list)
+
+immune.anchors <- FindIntegrationAnchors(object.list = merge_split.list, anchor.features = features,  dims = 1:10, k.filter = NA)
+# this command creates an 'integrated' data assay
+immune.combined0 <- IntegrateData(anchorset = immune.anchors)
+
+# specify that we will perform downstream analysis on the corrected data note that the
+# original unmodified data still resides in the 'RNA' assay
+DefaultAssay(immune.combined0) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+immune.combined0 <- ScaleData(immune.combined0, verbose = FALSE)
+immune.combined0 <- RunPCA(immune.combined0, npcs = 30, verbose = FALSE)
+immune.combined0 <- RunUMAP(immune.combined0, reduction = "pca", dims = 1:30)
+immune.combined0 <- FindNeighbors(immune.combined0, reduction = "pca", dims = 1:30)
+
+immune.combined <- FindClusters(immune.combined0, resolution = 0.5)
+
+immune.combined$sample <- factor(immune.combined$sample, levels =c("HD1","HD2","HD1_stD2","p36D4","p36D45","p36D169","p45D24","p45D164","p16D9","p18D13") )
+table(immune.combined$sample)
+table(immune.combined$label.main,immune.combined$sample)
+
+# save cluster to meta data
+immune.combined$cluster <- Idents(immune.combined)
+
+####################
+# save RDS for downstream pipeline  
+####################
+saveRDS(object =immune.combined, file = paste0(outputSummary,"allSample_sc_BCR_integration.rds"))
+
+
+```
+
+
+
+
+# B cell associated immune cells
+
+```{r}
+
+ 
+##=========================================================================================####
+# merge all for cell type pie chart
+##=========================================================================================####
+
+table(immune.combined$label.main, immune.combined$sample)
+# set color mannully
+all_main_cellTypes<- c("B cells", "CD4+ T cells","CD8+ T cells", "Dendritic cells","NK cells", "Monocytes","T cells",
+                       "Basophils","Neutrophils","Progenitors")
+
+all_main_colours<- c( "B cells"="#b2df8a",  "CD4+ T cells"="#762a83", "CD8+ T cells"="#08519c",
+                       "Dendritic cells"="#e31a1c","NK cells"="#9ecae1","Monocytes"="#ff7f00","T cells"="#c51b7d",
+                       "Basophils"="gray95","Neutrophils"="#deebf7","Progenitors"="grey")
+
+all_main_color <- all_main_colours[order(as.integer(names(all_main_colours)))]
+
+pie_df <- prop.table(table(immune.combined$label.main, immune.combined$sample), margin = 2) %>%
+  as.data.frame() %>%  rownames_to_column()%>% mutate(percentage=round(Freq*100,digits = 2))
+
+
+colnames(pie_df) <- c("nubmer","mail.label","sample","Freq","percentage")
+pie_df$sample <- factor(pie_df$sample ,  levels =c("HD1","HD2","HD1_stD2","p36D4","p36D45","p36D169","p45D24","p45D164","p16D9","p18D13")  )
+pie_df$mail.label <- factor(x=pie_df$mail.label, levels = c("B cells","Dendritic cells", "Progenitors","CD4+ T cells","CD8+ T cells","T cells",
+                                                             "Monocytes","NK cells","Neutrophils",  "Basophils" ))
+head(pie_df)
+pie_df1<- pie_df %>% mutate(
+  phase=ifelse(sample=="HD1"|sample=="HD2","HD",
+               ifelse(sample=="p36D4"|sample=="p16D9"|sample=="p18D13","Acute infection",
+                      ifelse(sample=="p36D45"|sample=="p45D24","Convalescence",
+                             ifelse(sample=="p36D169"|sample=="p45D164","Post COVID-19","HD_stimulate"))))) %>% 
+  mutate(phase_main=ifelse(sample=="HD1"|sample=="HD2"|sample=="p36D169"|sample=="p45D164","HD/Post COVID-19",
+               ifelse(sample=="p36D4"|sample=="p16D9"|sample=="p18D13","Acute infection",
+                      ifelse(sample=="p36D45"|sample=="p45D24","Convalescence","HD_stimulate")))) %>% 
+  mutate(phase_main_short=ifelse(sample=="HD1"|sample=="HD2"|sample=="p36D169"|sample=="p45D164","HD/Late conva.",
+               ifelse(sample=="p36D4"|sample=="p16D9"|sample=="p18D13","Acute infection",
+                      ifelse(sample=="p36D45"|sample=="p45D24","Early conva.","HD_stimulate"))))
+
+
+
+pie_df1$phase <- factor(pie_df1$phase, levels = c("HD_stimulate", "Acute infection","Convalescence" ,"Post COVID-19","HD"  ))
+pie_df1$phase_main <- factor(pie_df1$phase_main, levels = c("HD_stimulate", "Acute infection","Convalescence" ,"HD/Post COVID-19"  ))
+pie_df1$phase_main_short <- factor(pie_df1$phase_main_short, levels = c("HD_stimulate", "Acute infection","Early conva." ,"HD/Late conva."  ))
+
+
+
+My_Theme2 = theme(
+  text=element_text(size=15,  face="bold"),
+  plot.title = element_text(color="black", size=200, face="bold"),
+  axis.title.x =element_blank(),
+  axis.title.y = element_blank(),
+  axis.text.x = element_blank(),
+  axis.text.y = element_blank())
+
+
+# https://stackoverflow.com/questions/42489277/multiple-ggplot-pie-charts-with-whole-pies
+pie_df$sample<- factor(pie_df$sample, levels = c("HD1","HD2","HD1_stD2","p16D9","p18D13","p36D4","p36D45","p45D24","p36D169","p45D164"))
+
+#--------------------------------------------------------------------
+ 
+
+pie3<- ggplot(data = pie_df1, aes(x = "", y = percentage, fill =  mail.label )) +
+  geom_bar(stat = "identity", position = position_fill()) +
+  geom_text(aes(label = ""), position = position_fill(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  facet_wrap(~ phase_main, ncol = 1)  +
+  My_Theme2 +
+  theme(legend.position='none') +
+  guides(fill=guide_legend(nrow=5, byrow=TRUE)) +
+  scale_fill_manual(values = all_main_color)  
+
+pie3
+
+
+
+ggsave(filename=paste0(outputPlot,"pie3.png"),
+       plot=pie3, width=round(length(unique(immune.combined$sample)))*2.8, height=round(length(unique(immune.combined$sample)))*2.8, units="cm",dpi = 300)
+
+```
+
+
+# grouped barplot
+ 
+```{r}
+ 
+# https://www.datanovia.com/en/blog/awesome-list-of-657-r-color-names/
+sampleColours = c("HD1_stD2"="#6a51a3","HD1"="blue", "HD2"="#33658A",
+                  "p36D4"="#e31a1c","p36D45"="#33a02c","p36D169"="#ff7f00",
+                  "p45D24"="#F26157","p45D164"="#20b2aa","p16D9"="mistyrose2","p18D13"="mediumorchid2")
+
+# show_col(sampleColours)
+
+sampleColours2 = c("HD_stimulate"="#6a51a3", "Acute infection"="grey", "Convalescence"="#F26157",
+                  "HD/Post COVID-19"="#33a02c")
+
+# show_col(sampleColours2)
+ 
+head(pie_df)
+pie_df2<- pie_df1  
+pie_df2$phase_main <- factor(pie_df2$phase_main , levels = c("HD_stimulate", "Acute infection","Convalescence" ,"HD/Post COVID-19"))
+
+
+#----------------------
+library(plyr)
+data_summary <- function(data, varname, groupnames){
+  require(plyr)
+  summary_func <- function(x, col){
+    c(mean = mean(x[[col]], na.rm=TRUE),
+      sd = sd(x[[col]], na.rm=TRUE))
+  }
+  data_sum<-ddply(data, groupnames, .fun=summary_func,
+                  varname)
+  data_sum <- rename(data_sum, c("mean" = varname))
+ return(data_sum)
+}
+#----------------------
+# add error bar
+pie_df3 <-pie_df2 %>% filter(sample!="HD1_stD2")
+
+pie_df_erBar<-  data_summary(pie_df3, varname="percentage", 
+                    groupnames=c("mail.label", "phase_main"))
+
+pie_df_erBar$mail.label=as.factor(pie_df_erBar$mail.label)
+head(pie_df_erBar)
+
+# Default bar plot
+p<- ggplot(pie_df_erBar, aes(x=mail.label, y=percentage, fill=phase_main)) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  geom_errorbar(aes(ymin=percentage-sd, ymax=percentage+sd), width=.2,
+                 position=position_dodge(.9)) 
+# print(p)
+
+# Finished bar plot
+
+My_Theme_bar2 = theme(
+  panel.border = element_rect(colour="black", fill = NA),
+  strip.text = element_text(size = 4.5),
+  panel.background = element_blank(),
+  plot.title = element_text(color="black", size=8, face="bold"),
+  axis.title.x = element_text(color="black", size=12),
+  axis.title.y = element_text(color="black", size=12),
+  axis.text.x =  element_text( size=12, hjust=1,  face="bold",angle = 45),
+  axis.text.y =  element_text( size=12, face="bold"),
+    legend.text = element_text(size=12, face="bold"),
+    legend.title = element_text(size=12, face="bold")
+  )
+
+
+barAll<- p+labs(title="Co-isolation of other immune cells", x="Cell types", y = "Percentage")+
+   theme_classic() +   My_Theme_bar2+
+   scale_fill_manual(values=c("grey","#F26157","#33a02c"))
+print(barAll)
+
+ggsave(filename=paste0(outputPlot,"coIsolated_immuneCells_withLable.png"), 
+       plot=barAll, width=18, height=10, units="cm",dpi = 300)
+
+# for non B cells population
+pie_df_erBar_nonB <- pie_df_erBar %>% filter(mail.label!="B cells")
+
+# Default bar plot FOR Non-B cells 
+p_nonB <- ggplot(pie_df_erBar_nonB, aes(x=mail.label, y=percentage, fill=phase_main)) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  geom_errorbar(aes(ymin=percentage-sd, ymax=percentage+sd), width=.2,
+                 position=position_dodge(.9)) 
+
+# Finished bar plot
+
+p_nonB_label<- p_nonB+labs(title="Co-isolation of other immune cells", x="Cell types", y = "Percentage")+
+   theme_classic() +  My_Theme_bar2+
+   scale_fill_manual(values=c("grey","#F26157","#33a02c"))
+
+print(p_nonB_label)
+
+ggsave(filename=paste0(outputPlot,"nonB_coIsolated_immuneCells_withLable.png"), 
+       plot=p_nonB_label, width=18, height=10, units="cm",dpi = 300)
+
+```
+
+
+
+
+
+
+ 
+# check the nFeature for DC cells and compare to other cells to check the possibility of doublets
+
+global variable
+```{r}
+
+outputPlot_doublets<- paste0(outputPlot,"doublets/") 
+ifelse(!dir.exists(outputPlot_doublets),dir.create(outputPlot_doublets),FALSE)
+```
+
+Main 
+
+
+```{r}
+
+
+immune.combined$label.main<- factor(immune.combined$label.main,
+                                   levels = c("B cells","Monocytes","Dendritic cells","CD4+ T cells", "Progenitors", "CD8+ T cells","T cells","NK cells" ,"Basophils","Neutrophils" ))
+
+pdf(file=paste0(outputPlot_doublets,"nFeature.pdf"))
+for(i in seq_along(unique(immune.combined$sample))){
+  sample.i <- unique(immune.combined$sample)[i]
+  Idents(immune.combined) <- immune.combined$sample
+  sc<- subset(immune.combined, idents =sample.i )
+  
+  freq<- as.data.frame(table(sc$label.main, sc$sample))
+  # remove cells less than 4 
+   mainCelltype <- freq %>% filter(Freq>4)
+   mainCellList <- mainCelltype$Var1
+  Idents(sc)<- sc$label.main
+  sc_main <- subset(sc, idents = mainCellList )
+  # add statistic : median
+  # https://github.com/satijalab/seurat/issues/2475
+  
+  MedianVioSeu <- function() stat_summary(fun.y = median, geom='point', size = 15, colour = "darkred", shape = 95)
+  
+  pv<- VlnPlot(sc_main, features = "nCount_RNA", split.by = "label.main") +MedianVioSeu() +rremove("legend")
+  print(pv)
+  
+  ggsave(filename=paste0(outputPlot_doublets,sample.i, "nCount.png"), 
+       plot=pv, width=12, height=10, units="cm",dpi = 300)
+  
+  pvF<- VlnPlot(sc_main, features = "nFeature_RNA", split.by = "label.main") +MedianVioSeu() +rremove("legend")
+  print(pvF)
+  ggsave(filename=paste0(outputPlot_doublets,sample.i, "nFeature.png"), 
+       plot=pvF, width=12, height=10, units="cm",dpi = 300)
+  
+
+  #################
+  # Further subset the BCR expression DC together with B cells
+  #################
+  
+  DC_B <- c("B cells","Dendritic cells")
+  DC_B_sc <- subset(sc, idents = DC_B  )
+  DC_BCR_positive <- subset(DC_B_sc, subset = IGHM>0)
+  ppvC<- VlnPlot(DC_BCR_positive, features = c("nCount_RNA" ), split.by = "label.main") +MedianVioSeu() +rremove("legend")
+  print(ppvC)
+  
+  ppvF <- VlnPlot(DC_BCR_positive, features = c("nFeature_RNA"), split.by = "label.main") +MedianVioSeu() +rremove("legend")
+   print(ppvF)
+  
+  ggsave(filename=paste0(outputPlot_doublets,sample.i, "IGM_positive_DC_B_nCount.png"), 
+       plot=ppvC, width=6, height=10, units="cm",dpi = 300)
+  
+   ggsave(filename=paste0(outputPlot_doublets,sample.i, "IGM_positive_DC_B_nFeature.png"), 
+       plot=ppvF, width=6, height=10, units="cm",dpi = 300)
+
+   #################
+   # extract DC with or without IGM expression
+   #################
+   if(sample.i=="p36D4"|sample.i=="p16D9"|sample.i=="p18D13"|sample.i=="HD1_stD2"){
+     DC <- subset(sc, idents ="Dendritic cells"  )
+     
+     # subset sc doesn't express a list of genes 
+     #https://github.com/satijalab/seurat/issues/3965
+     # https://satijalab.org/seurat/articles/essential_commands.html
+     
+     fullIso <- c( "IGHD","IGHM","IGHA1","IGHA2","IGHE","IGHG1","IGHG2","IGHG3","IGHG4")
+     expr <- FetchData(DC, vars = fullIso)
+     fullIso_DC_Neg <- DC[, which(expr == 0)]
+     fullIso_DC_Neg$igmExp <-"ig_NegativeDC"
+
+     DC_igM <- subset(DC,   subset = IGHM>0 )
+     #DC_igM <- DC[, which("IGHM"> 0|"IGHD"> 0|"IGHA1"> 0|"IGHA2"> 0|"IGHE"> 0|"IGHG1"> 0|"IGHG2"> 0|"IGHG3"> 0|"IGHG4"> 0)]
+
+     DC_igM$igmExp <- "igM_PositiveDC"
+
+   
+   DC_merge <- merge(x=DC_igM,y=fullIso_DC_Neg)
+   Idents(DC_merge) <- DC_merge$igmExp
+   pDC_IgM <- VlnPlot(DC_merge, features = c("nFeature_RNA"), split.by = "igmExp") +MedianVioSeu() +rremove("legend")
+   print(pDC_IgM)
+   
+    ggsave(filename=paste0(outputPlot_doublets,sample.i, "DC_igM_Posi_or_Neg_nFeature.png"), 
+       plot=pDC_IgM, width=6, height=10, units="cm",dpi = 300)
+    
+     pDC_IgM_comb <- VlnPlot(DC_merge, features = c("nCount_RNA","nFeature_RNA","percent.mt"), split.by = "igmExp") +MedianVioSeu() +rremove("legend")
+   print(pDC_IgM_comb)
+   
+    ggsave(filename=paste0(outputPlot_doublets,sample.i, "DC_igM_Posi_or_Neg_AllFeatures.png"), 
+       plot=pDC_IgM_comb, width=16, height=10, units="cm",dpi = 300)
+   }else{
+     print("only focus on early timepoints")
+   }
+
+}
+dev.off()
+```
+
+
+
+
+
+# HD1_stD2 isotype dotplot
+
+```{r}
+Idents(immune.combined)<- immune.combined$sample
+ immune.combined_i <- subset(immune.combined,
+                                     idents="HD1_stD2")
+    table(immune.combined_i$SingleR.labels)
+    
+ Idents(immune.combined_i)<- immune.combined_i$label.main
+    # remove cells < 5 cells
+    cellNo<- as.data.frame(table(immune.combined_i$label.main))
+    cellNo_main <- cellNo %>% filter(Freq>5)
+    cellNo_mainLable <- cellNo_main$Var1
+    immune.combined_i_main <-  subset(immune.combined_i,
+                                     idents=cellNo_mainLable)
+    
+    markerForPlot<- c( "IGHD","IGHM","IGHA1","IGHA2","IGHE","IGHG1","IGHG2","IGHG3","IGHG4")
+    My_Theme_Dot = theme(
+    plot.title = element_blank(),
+    axis.title.x =element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(angle =45,   hjust=1, size=12, face="bold"),
+    axis.text.y =  element_text( size=14, face="bold"))
+    
+   dotPlot<- DotPlot(immune.combined_i_main, assay="RNA",features = markerForPlot, dot.scale = 8, cluster.idents=F) +
+      RotatedAxis()
+   
+     dimplot_flip<- dotPlot  & My_Theme_Dot
+  dimplot_flip
+ 
+```
+
+ 
+
+
+
+-1b.  All sc samples, but pure B cells for both fine and main labels
+```{r}
+ 
+####################
+#subset pure b cells
+####################
+ 
+Idents(sc_combine) <- sc_combine$label.main
+sc_combineB <- subset(sc_combine,idents="B cells")
+table(sc_combineB$SingleR.labels,sc_combineB$sample)
+
+#######
+# further subset b cells by SingleR label
+#######
+
+# list and subset fine b sub cell types
+fine_cellTypes<- c("Exhausted B cells", "Non-switched memory B cells","Switched memory B cells", "Plasmablasts","Naive B cells")
+#immune.combined@meta.data$SingleR.labels <- factor(immune.combined@meta.data$SingleR.labels, levels = fine_cellTypes)
+
+# assign the Idents with fine labels
+Idents(sc_combineB)<- sc_combineB$SingleR.labels
+
+fine_sc <- subset(x = sc_combineB, idents =fine_cellTypes, invert = F)
+
+table(fine_sc$SingleR.labels,fine_sc$sample)
+
+
+####################
+# normlization  
+####################
+
+# split the dataset into a list of two seurat objects (stim and CTRL)
+merge_split <- SplitObject(fine_sc, split.by = "sample")
+
+# normalize and identify variable features for each dataset independently
+merge_split.list <- lapply(X = merge_split, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+# select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = merge_split.list)
+
+immune.anchors <- FindIntegrationAnchors(object.list = merge_split.list, anchor.features = features,  dims = 1:30 )
+# this command creates an 'integrated' data assay
+immune.combined1 <- IntegrateData(anchorset = immune.anchors)
+
+# specify that we will perform downstream analysis on the corrected data note that the
+# original unmodified data still resides in the 'RNA' assay
+DefaultAssay(immune.combined1) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+immune.combined1 <- ScaleData(immune.combined1, verbose = FALSE)
+immune.combined1 <- RunPCA(immune.combined1, npcs = 50, verbose = FALSE)
+immune.combined1 <- RunUMAP(immune.combined1, reduction = "pca", dims = 1:50)
+immune.combined1 <- FindNeighbors(immune.combined1, reduction = "pca", dims = 1:50)
+
+immune.combinedB <- FindClusters(immune.combined1, resolution = 1)
+
+immune.combinedB$sample <- factor(immune.combinedB$sample, levels =c("HD1","HD2","HD1_stD2","p36D4","p36D45","p36D169","p45D24","p45D164","p16D9","p18D13") )
+table(immune.combinedB$sample)
+table(immune.combinedB$label.main,immune.combinedB$sample)
+
+# save cluster to meta data
+immune.combinedB$cluster <- Idents(immune.combinedB)
+
+####################
+# save RDS for downstream pipeline  
+####################
+saveRDS(object =immune.combinedB, file = paste0(outputSummary,"allSample_pureB_BCR_integration.rds"))
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+# QC
+table(immune.combinedB$SingleR.labels,immune.combinedB$sample)
+
+Idents(immune.combinedB) <- immune.combinedB$sample
+
+table(Idents(immune.combinedB) )
+```
+
+# check the BCR gene expression 
+
+```{r}
+outputPlot_dot_isoFull<- paste0(outputPlot,"selectedMarkerPlot/isoFull/")
+ifelse(!dir.exists(outputPlot_dot_isoFull),dir.create(outputPlot_dot_isoFull, recursive = T),FALSE)
+
+featureList_isoFull <- c( "IGHD","IGHM","IGHA1","IGHA2","IGHE","IGHG1","IGHG2","IGHG3","IGHG4")
+
+# main
+ customMarkers_bySampleByCluster(df=immune.combined,markers.to.plot=featureList_isoFull,
+                           outputPlotPath=outputPlot,threshold.cell=5)
+
+```
+
+
+
+
+#  Accute infection analysis
+
+## singleR prediction for early infection samples
+
+```{r}
+Idents(sc_combine)<-sc_combine$sample 
+# subset the early infection
+earlyInfection_list<- c("p16D9", "p18D13", "p36D4")
+early_infection<- subset(sc_combine, idents=earlyInfection_list)
+# load ref data for singleR prediction
+    ref_Monaco <- MonacoImmuneData()
+    
+# subset the sc
+table(early_infection$sample)
+  # filter cells
+  sub_earlyInfection <- subset(early_infection, subset = nFeature_RNA > 150 & nFeature_RNA < 2000) 
+  
+table(sub_earlyInfection$sample)
+
+ pred.gex_eInf_main<-SingleR(GetAssayData(sub_earlyInfection, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.main)
+ 
+pred.gex_eInf_fine<-SingleR(GetAssayData(sub_earlyInfection, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.fine)
+    
+# assign the cell types to the sc dataset
+sub_earlyInfection$label.main<- pred.gex_eInf_main$labels
+sub_earlyInfection$label.fine<- pred.gex_eInf_fine$labels
+
+ # save RDS
+# saveRDS(sub_earlyInfection,file = paste0(rdsOutput_Summary,"earlyInfectionMerg.rds"))
+# per-cell “deltas”
+     
+    # QC-1: score heatmap QC
+    singlR_heatmap<- plotScoreHeatmap(pred.gex_eInf_main)
+    singlR_heatmap
+   # ggsave(filename=paste0(outputPlot,i,"_singlR_heatmap.png"), plot=singlR_heatmap,width=16, height=8, units="cm",dpi=300)
+    # QC-2:  per-cell “deltas”
+    #singlR_deltas<- plotDeltaDistribution(pred.gex_eInf_main, ncol = 3)
+    #ggsave(filename=paste0(outputPlot,i,"_singlR_deltas.png"), plot=singlR_deltas, width=16, height=16, units="cm",dpi=300)
+
+
+ ggsave(filename=paste0(outputPlot,"ealryInfection_singleR.png"), plot=singlR_heatmap,
+           width=18, height=10, units="cm",dpi=300)
+
+
+
+```
+
+
+# normalization
+
+```{r}
+rna2 <- NormalizeData(sub_earlyInfection, normalization.method = "LogNormalize", scale.factor = 10000)
+
+rna2  <- FindVariableFeatures(rna2 , selection.method = "vst", nfeatures = 2000)
+ 
+# Scaling the data
+all.genes <- rownames(rna2)
+rna2 <- ScaleData(rna2, features = all.genes)
+
+rna2 <- RunPCA(rna2, features = VariableFeatures(object = rna2))
+
+print(rna2[["pca"]], dims = 1:5, nfeatures = 5)
+
+VizDimLoadings(rna2, dims = 1:2, reduction = "pca")
+
+ElbowPlot(rna2)
+
+rna2 <- FindNeighbors(rna2, dims = 1:15)
+rna2 <- FindClusters(rna2, resolution = 0.5)
+
+# Look at cluster IDs of the first 5 cells
+head(Idents(rna2), 5)
+
+# If you haven't installed UMAP, you can do so via reticulate::py_install(packages =
+# 'umap-learn')
+rna2 <- RunUMAP(rna2, dims = 1:12)
+
+# note that you can set `label = TRUE` or use the LabelClusters function to help label
+# individual clusters
+DimPlot(rna2, reduction = "umap")
+
+```
+
+
+ 
+```{r}
+# remove cells < 5 cells 
+Idents(rna2)<- rna2$label.main
+cell_ct<-as.data.frame(table(rna2$label.main))
+cell_ct_main <- cell_ct %>%filter(Freq>5)
+cell_ct_mainList <- cell_ct_main$Var1
+
+accuteInfection_main <- subset(rna2, idents =cell_ct_mainList )
+
+Idents(accuteInfection_main)<- accuteInfection_main$label.main
+# remove cells type < 5 
+cell.fre<- as.data.frame(table(rna2$label.main))  %>% mutate(pct=Freq/sum(Freq)*100) %>% filter(pct>1)
+major.sc <- subset(rna2, idents=cell.fre$Var1)
+ 
+DimPlot_noLb<-DimPlot(major.sc, reduction = "umap",label = F, pt.size = 0.2) 
+DimPlot_noLb
+ 
+ggsave(filename=paste0(outputPlot,"earlyInfecMerg_DimPlot_labelMain_noLB.png"),
+          plot=DimPlot_noLb, width=16, height=10, units="cm",dpi=300)
+ 
+
+
+# combine T cells , CD4 and CD8 T cells
+
+major.sc_mainLabel <- RenameIdents(object = major.sc, `CD4+ T cells` = "All T cells")
+#major.sc_mainLabel <- RenameIdents(object = major.sc_mainLabel, `CD8+ T cells` = "All T cells")
+major.sc_mainLabel <- RenameIdents(object = major.sc_mainLabel, `T cells` = "All T cells")
+
+DimPlot_mainCell<- DimPlot(major.sc_mainLabel, reduction = "umap",label = TRUE, pt.size = 0.2) 
+DimPlot_mainCell
+ 
+
+ggsave(filename=paste0(outputPlot,"earlyInfecMerg_DimPlot_labelMain_LB_CombTcells.png"),
+          plot=DimPlot_mainCell, width=16, height=10, units="cm",dpi=300)
+ 
+ 
+```
+
+
+
+
+
+
+
+
+
+```{r}
+ 
+ridP<- RidgePlot(object =major.sc_mainLabel,  features =c("IGHM"))
+ridP
+
+ 
+# dot plot
+   My_Theme_Dot = theme(
+    plot.title = element_blank(),
+    axis.title.x =element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(angle =45,   hjust=1, size=20, face="bold"),
+    axis.text.y =  element_text( size=20, face="bold"),
+    legend.text = element_text(size=20, face="bold"),
+    legend.title = element_text(size=20, face="bold")
+    )
+   
+ 
+
+cd_genes <- c("IGHD","IGHM","IGHA1","IGHA2","IGHE","IGHG1","IGHG2","IGHG3","IGHG4")
+dotPlot<- DotPlot(object = major.sc_mainLabel, features = cd_genes) + RotatedAxis() + My_Theme_Dot
+dotPlot 
+
+ ggsave(filename=paste0(outputPlot,"dotPlotIsoFull_earlyInfecMerg_labelMain_CombTcells.png"),plot=dotPlot, 
+          width=length(cd_genes)*2.5, height=length(unique(major.sc_mainLabel$label.main))*1.28 , units="cm",dpi = 300 )
+      
+    
+```
+
+
+
+
+
+# print session infor
+```{r}
+sessionInfo()
+```
+
+
