@@ -1,6 +1,6 @@
 # Scripts for LinkSeq paper data analysis and visualization.
 
-- Raw data can be downloaded from ENA under the acession number Webin-63442. Raw BCR-sequencing data have to be preprocessed using the R and linux code in scrip/Preprocess/ folder before loading into the R markdown files for downstream analysis and visulization.  
+- Raw data can be downloaded from ENA under the acession number PRJEB57285. Raw BCR-sequencing data have to be preprocessed using the R and linux codes in scrip/Preprocess/ folder before loading into the R markdown files for downstream analysis and visulization.  
 
 - For both bcr data preprocess and downstream analysis/visualization, functions in "BcrPreprocessFunction.R" and "linkseqFunctions.R" files have to be sourced correctly with the paths in your own computer. 
 
