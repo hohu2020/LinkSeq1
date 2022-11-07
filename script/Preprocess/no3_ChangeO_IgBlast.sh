@@ -5,16 +5,16 @@
 
 
 #############
-#  it runs in docker
+#  This code runs in Immcantation docker container (4.2.0-48-gea6b5b4dcfd4+)
 # This code is to:
 #   - run IgBlast in ChangeO
 #   - align bcr to Germline sequence
 #############
 
-# activate docker and mount "Linkseq" folder to the data dir in docker
+# activate docker and mount "Linkseq1" folder to the data dir in docker
 
  sudo docker run -it -v /home/hohu/Desktop:/data:z immcantation/suite:4.3.0 bash
-# password
+# your password
 
 ######################################################################################
 # IgBlast in immcantation docker
@@ -23,7 +23,7 @@
 
 # Directory containing IMGT-gapped reference germlines. Defaults to /usr/local/share/germlines/imgt/[species name]/vdj.
 # no PEAR use "*_noPear_barcode_airr.fa"  file
-# already collapsed at cell barcode level
+
 
 
 # "file1" "file2"  "file3" "fileN" are dummy file names which should be replaced with YOUR file names
@@ -73,10 +73,10 @@ done
 
 
 #================================================#
-# example in my laptop:
+# example in my laptop. Continue after no2_extract_consensusBcr_fromAirr.sh
 #================================================#
-
-# activate docker and mount "Linkseq" folder to the data dir in docker
+# example BCR data can be downloaded in ENA (accession no: ERR10467205)
+# activate docker and mount "LinkSeq1" folder to the data dir in docker
 
  sudo docker run -it -v /home/hohu/Desktop:/data:z immcantation/suite:4.3.0 bash
 # password
@@ -89,14 +89,14 @@ done
 for fileName in "HD1_stD2"
 do
   # input
-  main_inputPath="/data/LinSeq/result/summary/no2/"
+  main_inputPath="/data/LinkSeq1/result/"
 
   # use the "_noPear_barcode_airr.fa" instead of "annot.fa"
    READS="${main_inputPath}${fileName}_noPear_barcode_airr.fa"
 
 
   # output
-  OUT_DIR="/data/LinSeq/result/summary/no3/"
+  OUT_DIR="/data/LinkSeq1/result/"
   mkdir -p $OUT_DIR
 
   SAMPLE_NAME="${fileName}_noPearIgblastBarcodeAirr"

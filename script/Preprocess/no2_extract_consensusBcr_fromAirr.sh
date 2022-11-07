@@ -5,7 +5,7 @@
 
 # This code is to:
 #   - extract the consensus BCR sequences from TRUST4 output file: "*_barcode_airr.tsv"
-#   -
+#   - fill the path in "" with the your local file path
 
 
 ###########################################################################
@@ -33,17 +33,18 @@ done
 
 
 #================================================#
-# example in my laptop:
+# example in my laptop, continue after no1_TRUST4.sh
 #================================================#
+# example BCR data can be downloaded in ENA (accession no: ERR10467205)
 
 for fileName in  "HD1_stD2"
 do
   # input
-  main_inputPath="/home/hohu/Desktop/LinSeq/result/summary/no1/"
+  main_inputPath="/home/hohu/Desktop/LinkSeq1/result/"
 
   inputFile="${main_inputPath}${fileName}HL_barcode_airr.tsv"
   # output
-  outputPath="/home/hohu/Desktop/LinSeq/result/summary/no2/"
+  outputPath="/home/hohu/Desktop/LinkSeq1/result/"
   mkdir -p $outputPath
 
   # extract seqence_id and sequence  for igblast

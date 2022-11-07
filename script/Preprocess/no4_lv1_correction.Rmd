@@ -2,9 +2,12 @@
    - correct the BCR cell barocode using scRNAseq cell barcode as whitelist (allowing 1 mismatch)
 
 # INPUT DATA 
-#   - sc data with singleR infor
-#   - consensus BCR from TRUST4 output 
+   - sc data with singleR infor (processed scRDS file provided in data/sc folder)
+   - consensus BCR from TRUST4 output 
 
+# Note
+- The source path for "BcrPreprocessFunction.R" need to be changed with your local path
+- All the input and out path need to be changed to your local path 
 
 
 
@@ -17,7 +20,8 @@ suppressPackageStartupMessages({
   library(tidyverse)
   library(Seurat)
   library(RecordLinkage)
-  source("/home/hohu/Desktop/LinSeq/script/BcrPreprocessFunction.R")
+  # the source path for "BcrPreprocessFunction.R" need to be changed with your local path
+  source("/home/hohu/Desktop/LinkSeq1/script/Preprocess/BcrPreprocessFunction.R")
 
 })
 ```
@@ -31,16 +35,17 @@ suppressPackageStartupMessages({
 ##==============================================================================##
 
 global variable
+
 ```{r}
+# Note:  All the input and out path need to be changed to your local path 
+inputPath_TRUST4Bcr<-"/home/hohu/Desktop/LinkSeq1/result/"
+inputPath_Bcr<-"/home/hohu/Desktop/LinkSeq1/result/" 
+inputPath_Gex<- "/home/hohu/Desktop/LinkSeq1/data/sc/"
 
-inputPath_TRUST4Bcr<-"/media/hohu/ArmorATD1/TRUST4_output/"
-inputPath_Bcr<-"/media/hohu/ArmorATD1/snakemake/covid_top20_bcr_snakemake/results/summary/pip4/step6/" # acctually results from pip5
-inputPath_Gex<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/data/from_xiaoli/singleR/rename/"
-
-outputPath_summary <- "/home/hohu/Desktop/LinSeq/result/summary/no4/"
+outputPath_summary <- "/home/hohu/Desktop/LinkSeq1/result/"
 ifelse(!dir.exists(outputPath_summary), dir.create(outputPath_summary, recursive = T),FALSE)
 
-outputPath_plot <- "/home/hohu/Desktop/LinSeq/result/plot/no4/"
+outputPath_plot <- "/home/hohu/Desktop/LinkSeq1/result/"
 ifelse(!dir.exists(outputPath_plot), dir.create(outputPath_plot, recursive = T),FALSE)
 
 ```
@@ -50,8 +55,8 @@ ifelse(!dir.exists(outputPath_plot), dir.create(outputPath_plot, recursive = T),
  
  
 ```{r}
-fileList <- c("HD960","HD1500","HD3600","p36T1","p36T2","p36T4" )
-
+# fileList <- c("HD960","HD1500","HD3600","p36T1","p36T2","p36T4" )
+ fileList <- c("HD960")
 
 lv1_bcrHeavy<- lv_repairBcrHeavy( file_List=fileList,df_igblastBcrPath=inputPath_Bcr, 
                                    df_TRUST4BcrPath=inputPath_TRUST4Bcr, df_scRdsPath=inputPath_Gex,outputPathPlot=outputPath_plot,
@@ -72,8 +77,8 @@ sapply(lv1_bcrHeavy,dim)
  
 ```{r}
 
-fileList <- c("HD960","HD1500","HD3600","p36T1","p36T2","p36T4")
-
+# fileList <- c("HD960","HD1500","HD3600","p36T1","p36T2","p36T4" )
+ fileList <- c("HD960")
 
 # lv distance =1 
 lv1_bcrLight<- lv_repairBcrLight( file_List=fileList,df_igblastBcrPath=inputPath_Bcr,  

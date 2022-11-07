@@ -134,7 +134,7 @@ lv_repairBcrHeavy <- function(file_List,df_igblastBcrPath, df_TRUST4BcrPath, df_
       ###############
       # READ BCR DATA (TRUST4 *barcode_airr.tsv)
       ###############
-      bcr_db_TRUST<- read_tsv(file=paste0(df_TRUST4BcrPath,fileName,"HL","/",fileName,"HL_barcode_airr.tsv"))
+      bcr_db_TRUST<- read_tsv(file=paste0(df_TRUST4BcrPath,"/",fileName,"HL_barcode_airr.tsv"))
       bcr_db_TRUST_select <- bcr_db_TRUST %>% select(sequence_id,consensus_count)
       
       dim(bcr_db_TRUST_select)# slightly more bcr than igblast 
@@ -420,7 +420,7 @@ lv_repairBcrLight <- function(file_List,df_igblastBcrPath, df_TRUST4BcrPath, df_
       ###############
       # READ BCR DATA (TRUST4 *barcode_airr.tsv)
       ###############
-      bcr_db_TRUST<- read_tsv(file=paste0(df_TRUST4BcrPath,fileName,"HL","/",fileName,"HL_barcode_airr.tsv"))
+      bcr_db_TRUST<- read_tsv(file=paste0(df_TRUST4BcrPath,"/",fileName,"HL_barcode_airr.tsv"))
       bcr_db_TRUST_select <- bcr_db_TRUST %>% select(sequence_id,consensus_count)
       
       dim(bcr_db_TRUST_select)# slightly more bcr than igblast 

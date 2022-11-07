@@ -3,8 +3,11 @@
 # hongxing
 # contact: hhxing@gmail.com
 
+# install TRUST4 (v1.0.6) package (https://github.com/liulab-dfci/TRUST4)
 # BCR fastq file can be downloaded from ENA with accession number: PRJEB57285
-# fill the contents in ""
+
+# fill the path in "" with the your local file path
+
 cd "fill_with_the_path_to_TRUST4_dir"
 
 ./run-trust4 \
@@ -23,6 +26,7 @@ cd "fill_with_the_path_to_TRUST4_dir"
 #================================================#
 # example in my laptop:
 #================================================#
+# example BCR data can be downloaded in ENA (accession no: ERR10467205)
 
 cd /home/hohu/TRUST4
 
@@ -30,10 +34,10 @@ cd /home/hohu/TRUST4
 -t 7 \
 -f hg38_bcrtcr.fa \
 --ref human_IMGT+C.fa \
---od "/home/hohu/Desktop/LinSeq/result/summary/no1/" \
--u "/home/hohu/Desktop/LinSeq/data/000000000-J95WL_HuAbSeq_02_20s003655-1-1_Hu_lane1EM960HL_2_sequence.txt.gz"  \
---barcode "/home/hohu/Desktop/LinSeq/data/000000000-J95WL_HuAbSeq_02_20s003655-1-1_Hu_lane1EM960HL_1_sequence.txt.gz" \
+--od "/home/hohu/Desktop/LinkSeq1/result/" \
+-u "/home/hohu/Desktop/LinkSeq1/data/000000000-J95WL_HuAbSeq_02_20s003655-1-1_Hu_lane1EM960HL_2_sequence.txt.gz"  \
+--barcode "/home/hohu/Desktop/LinkSeq1/data/000000000-J95WL_HuAbSeq_02_20s003655-1-1_Hu_lane1EM960HL_1_sequence.txt.gz" \
 --barcodeRange 0 11 +  \
---UMI "/home/hohu/Desktop/LinSeq/data/000000000-J95WL_HuAbSeq_02_20s003655-1-1_Hu_lane1EM960HL_1_sequence.txt.gz"  \
+--UMI "/home/hohu/Desktop/LinkSeq1/data/000000000-J95WL_HuAbSeq_02_20s003655-1-1_Hu_lane1EM960HL_1_sequence.txt.gz"  \
 --umiRange 12 19 + \
--o  "HD1_stD2HL"
+-o  "HD960HL"

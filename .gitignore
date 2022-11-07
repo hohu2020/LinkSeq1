@@ -1,0 +1,8 @@
+
+tmp/
+data/*.txt.gz
+result/
+script/tmp/
+github_readme
+readme
+*.html
