@@ -27,13 +27,6 @@ suppressPackageStartupMessages({
 ```
 
 
-
-  
-
-##==============================================================================##
-#    MAIN FUNCTION-1: LV correction for heavy chain 
-##==============================================================================##
-
 global variable
 
 ```{r}
@@ -51,9 +44,9 @@ ifelse(!dir.exists(outputPath_plot), dir.create(outputPath_plot, recursive = T),
 ```
 
  
-# Main 
- 
- 
+
+# MAIN FUNCTION-1: LV correction for heavy chain 
+
 ```{r}
 # fileList <- c("HD960","HD1500","HD3600","p36T1","p36T2","p36T4" )
  fileList <- c("HD960")
@@ -69,12 +62,8 @@ sapply(lv1_bcrHeavy,dim)
 
   
 
-##==============================================================================##
 #    MAIN FUNCTION-2: LV correction for light chain 
-##==============================================================================##
- 
-# Main 
- 
+
 ```{r}
 
 # fileList <- c("HD960","HD1500","HD3600","p36T1","p36T2","p36T4" )
