@@ -37,7 +37,7 @@ done
 #================================================#
 # example BCR data can be downloaded in ENA (accession no: ERR10467205)
 
-for fileName in  "HD1_stD2"
+for fileName in  "HD960"
 do
   # input
   main_inputPath="/home/hohu/Desktop/LinkSeq1/result/"

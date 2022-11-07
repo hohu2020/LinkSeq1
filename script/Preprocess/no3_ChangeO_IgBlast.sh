@@ -86,7 +86,7 @@ done
 # NOTE : mannually  copy paste the code bellow in docker bash after logging into Docker
 #######################################################################################
 
-for fileName in "HD1_stD2"
+for fileName in "HD960"
 do
   # input
   main_inputPath="/data/LinkSeq1/result/"
