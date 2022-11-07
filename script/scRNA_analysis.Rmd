@@ -6,13 +6,10 @@ output: html_document
 ---
  
 # aims
-   - sc scale and normalization
-   - sc integration: 
-      all sc integration; 
-      pure B cell integration(used for down stream DEGs analysis)
+   - integrated single cell analysis
  
-# comments: 
-  - this integrated data is used for downstream integration based analysis: no2, no5, no6
+# Notes: 
+  - All the input and out path need to be changed to your local path 
   
 # load library 
 
@@ -26,7 +23,8 @@ library(sjPlot)
 library(scales)
 library(tidyverse)
 library(cowplot)
-source("/home/hohu/Desktop/LinSeq/script/linkseqFunctions.R")
+library(ggpubr)
+source("/home/hohu/Desktop/LinkSeq1/script/linkseqFunctions.R")
 
 ```
 
@@ -36,18 +34,15 @@ source("/home/hohu/Desktop/LinSeq/script/linkseqFunctions.R")
 # global variable 
 
 ```{r}
-##==============================================================================================####
-# singR prediction and bcr integration to meta
-# only predict the label.main , because label.fine already exist in sc from xiaoli
- 
-outputPlot<- "/home/hohu/Desktop/LinSeq/result/plot/scPreprocessNo2/"
+
+outputPlot<- "/home/hohu/Desktop/LinkSeq1/result/"
 ifelse(!dir.exists(outputPlot),dir.create(outputPlot, recursive = T),FALSE)
 
-outputSummary<- "/home/hohu/Desktop/LinSeq/result/summary/scPreprocessNo2/"
+outputSummary<- "/home/hohu/Desktop/LinkSeq1/result/"
 ifelse(!dir.exists(outputSummary),dir.create(outputSummary, recursive = T),FALSE)
 
-bcrInputPath<-"/home/hohu/Desktop/LinSeq/data/bcr_lv1/"
-rdsInputPath<- "/home/hohu/Desktop/LinSeq/data/sc/"
+bcrInputPath<-"/home/hohu/Desktop/LinkSeq1/data/bcr_lv1/"
+rdsInputPath<- "/home/hohu/Desktop/LinkSeq1/data/sc/"
 list.files(rdsInputPath)
 
 ```
@@ -155,7 +150,7 @@ saveRDS(object =immune.combined, file = paste0(outputSummary,"allSample_sc_BCR_i
 
 
 
-# B cell associated immune cells
+# pie chart for other cells co-isolated with B cells across infection
 
 ```{r}
 
@@ -239,7 +234,7 @@ ggsave(filename=paste0(outputPlot,"pie3.png"),
 ```
 
 
-# grouped barplot
+# grouped barplot for other cells co-isolated with B cells across infection
  
 ```{r}
  
@@ -348,7 +343,7 @@ ggsave(filename=paste0(outputPlot,"nonB_coIsolated_immuneCells_withLable.png"),
 
 global variable
 ```{r}
-
+# save those output figs into a separate folder due to the large amount of figs generated
 outputPlot_doublets<- paste0(outputPlot,"doublets/") 
 ifelse(!dir.exists(outputPlot_doublets),dir.create(outputPlot_doublets),FALSE)
 ```

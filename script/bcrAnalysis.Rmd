@@ -9,6 +9,9 @@ output: html_document
 -  plot the V/J usage for heavy or light chain
 -  plot the biased V gene usage for heavy and light
 
+# Note
+- The source path for "linkseqFunctions.R" need to be changed with your local path
+- All the input and out path need to be changed to your local path 
 
 # load the libraries
 
@@ -25,22 +28,23 @@ suppressPackageStartupMessages({
   library(sjPlot)
    library(ggpubr)
   library(SingleR)
-  source("/home/hohu/Desktop/LinSeq/script/linkseqFunctions.R")
+  source("/home/hohu/Desktop/LinkSeq1/script/linkseqFunctions.R")
 })
 ```
 
  
 # globle variable
+All the input and out path need to be changed to your local path.
 
 ```{r}
 file_pathBcr<-"/home/hohu/Desktop/LinSeq/data/bcr_lv1/"
 # file_pathGex<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/result/summary/pip20/no1/"
 file_pathGex<- "/home/hohu/Desktop/LinSeq/data/sc/"
 
-output_path <- "/home/hohu/Desktop/LinSeq/result/plot/no6/fig5cd/"
+output_path <- "/home/hohu/Desktop/LinkSeq1/result/"
 ifelse(!dir.exists(output_path), dir.create(output_path, recursive = T),FALSE)
 
-output_summary<-"/home/hohu/Desktop/LinSeq/result/summary/no6/fig5cd/"
+output_summary<-"/home/hohu/Desktop/LinkSeq1/result/"
 ifelse(!dir.exists(output_summary), dir.create(output_summary, recursive = T),FALSE)
 ```
 
@@ -52,10 +56,10 @@ ifelse(!dir.exists(output_summary), dir.create(output_summary, recursive = T),FA
 #fileList <- c("HD2B960","HD2B1500","HD2B3600","p36T1","p36T2","p36T4")
 fileList<- c("p36T4")
 
-summary_scBcr <- heatmap_VJH(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+summary_scBcr <- heatmap_VJ(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
                              rdsInputPath=file_pathGex,outputPath =output_path,type="heavy",vjSummary=output_summary)
 
-summary_scBcr <- heatmap_VJH(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+summary_scBcr <- heatmap_VJ(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
                              rdsInputPath=file_pathGex,outputPath = output_path,type="light",vjSummary=output_summary)
  
 ```
@@ -69,8 +73,8 @@ summary_scBcr <- heatmap_VJH(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
 
 fileList <- c("HD2B960","HD2B1500","HD2B3600","p36T1","p36T2","p36T4")
 
-summary_scBcr <- heatmap_VJH(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
-                                      rdsInputPath=file_pathGex,outputPlot = ouput_path,
+summary_scBcr <- biased_VHL(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+                                      rdsInputPath=file_pathGex,outputPlot = output_path,
                              outputSummary=output_summary,type="HL")
 ```
 

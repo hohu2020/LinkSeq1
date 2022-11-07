@@ -7,33 +7,33 @@
 combineSc_Bcr_singleR<- function(file_list, output_summary,inputBcr,inputSc){
   all_sc<- list()
   for(i in seq_along(fileList)){
-    
-    ############################### 
+
+    ###############################
     # singleR assignment for sc data
-    ############################### 
-    ############ 
+    ###############################
+    ############
     # read Sc data
-    ############ 
-    
+    ############
+
     name.i<- fileList[i]
     name.i
     gex_db <- readRDS(paste0(rdsInputPath,name.i,".rds"))
-    
+
     # load ref data for singleR prediction
     ref_Monaco <- MonacoImmuneData()
     minPercent.mt<- 15
-    gex_db<- subset(gex_db, subset = nFeature_RNA > 150 & nFeature_RNA < 2000& percent.mt < minPercent.mt ) 
+    gex_db<- subset(gex_db, subset = nFeature_RNA > 150 & nFeature_RNA < 2000& percent.mt < minPercent.mt )
     # https://www.biostars.org/p/9479638/
     # predict gex
-    
+
     pred.gex_db<-SingleR(GetAssayData(gex_db, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.main)
-    
+
     pred.gex_db_fine<-SingleR(GetAssayData(gex_db, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.fine)
     # assign the label.main to p36D1 meta data
     gex_db$label.main<- pred.gex_db$labels
     gex_db$SingleR.labels <- pred.gex_db_fine$labels
-    
-    
+
+
     if( name.i=="p36T1"){
       sample_id<-"p36_T1"
       sampleName<-"p36D4"
@@ -77,64 +77,64 @@ combineSc_Bcr_singleR<- function(file_list, output_summary,inputBcr,inputSc){
     }else {
       print("now only support COVID and HD bcr data")
     }
-    
-    
+
+
     gex_db$sample<- sampleName
     gex_db$id<- sample_id
     gex_db$orig.ident<- NULL
     Idents(gex_db)
     str(gex_db)
-    
-    
-    
+
+
+
     if(name.i=="p45T5"|name.i=="p45T2"|name.i=="p16T1B"|name.i=="p18T1"){
-      # no bcr to match sc 
+      # no bcr to match sc
       table(gex_db$label.main)
       table(gex_db$SingleR.labels)
-      
+
       # save the singleR annotated file
       write_rds(x=gex_db,file =paste0(output_summary,name.i,"_singleR_AnnoSC_HX.rds") )
-      
-      
+
+
     }else{
-      ############################### 
+      ###############################
       # add BCR lv1 heavy V,CDR3,J to sc meta data
-      ############################### 
-      
+      ###############################
+
       ############
-      # read BCR 
+      # read BCR
       ############
       # Read BCR H data
-      
+
       bcr_db_H <- read_tsv(paste0(bcrInputPath, name.i,"_lv1CorrectHeavyBcr.tsv"))
       bcr_db_H$v_call <- sapply(str_split(bcr_db_H$v_call, pattern = "\\*"),"[",1)
       bcr_db_H$j_call <- sapply(str_split(bcr_db_H$j_call, pattern = "\\*"),"[",1)
-      bcr_db_H<-within(bcr_db_H, 
+      bcr_db_H<-within(bcr_db_H,
                        cdr3aa<-substr(junction_aa,2,nchar(junction_aa)-1) )
-      
+
       # Read BCR L data
       bcr_db_L <- read_tsv(paste0(bcrInputPath, name.i,"_lv1CorrectLightBcr.tsv"))
       bcr_db_L$v_call <- sapply(str_split(bcr_db_L$v_call, pattern = "\\*"),"[",1)
       bcr_db_L$j_call <- sapply(str_split(bcr_db_L$j_call, pattern = "\\*"),"[",1)
-      bcr_db_L<-within(bcr_db_L, 
+      bcr_db_L<-within(bcr_db_L,
                        cdr3aa<-substr(junction_aa,2,nchar(junction_aa)-1) )
       # Add meta infor to BCR
       bcr_db_H$sample<- sampleName
       bcr_db_H$id<- sample_id
       bcr_db_H$day<- dpi
-      
+
       bcr_db_L$sample<- sampleName
       bcr_db_L$id<- sample_id
       bcr_db_L$day<- dpi
-      
-      ############ 
+
+      ############
       # Match barcode
-      ############ 
+      ############
       # NOTE: cell_id becomes the cluster_cb after lv1 correction
       bcr_db_H$cell_id_unique = paste0(bcr_db_H$id, "_", bcr_db_H$cell_id)
       bcr_db_H$cluster_cb_unique = paste0(bcr_db_H$id, "_", bcr_db_H$cluster_cb)
       bcr_db_H$cell_id_unique[1:4]
-      
+
       bcr_db_L$cell_id_unique = paste0(bcr_db_L$id, "_", bcr_db_L$cell_id)
       bcr_db_L$cluster_cb_unique = paste0(bcr_db_L$id, "_", bcr_db_L$cluster_cb)
       bcr_db_L$cell_id_unique[1:4]
@@ -144,49 +144,49 @@ combineSc_Bcr_singleR<- function(file_list, output_summary,inputBcr,inputSc){
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv1_H = match(Cells(gex_db), bcr_db_H$cluster_cb_unique)
       match.index_lv1_L= match(Cells(gex_db), bcr_db_L$cluster_cb_unique)
-      
-      ############ 
+
+      ############
       # Add BCR h and L v,d.j and CDR3 aa to sc data as meta data
-      ############ 
+      ############
       v_H <- bcr_db_H$v_call
       d_H <- bcr_db_H$d_call
       j_H <- bcr_db_H$j_call
       cdr3aa_H<- bcr_db_H$cdr3aa
       cluster_cb_unique_H <-bcr_db_H$cluster_cb_unique
-      
-      v_L <- bcr_db_L$v_call 
+
+      v_L <- bcr_db_L$v_call
       j_L <- bcr_db_L$j_call
       cdr3aa_L<- bcr_db_L$cdr3aa
-      
-      ############ 
-      # lv1 based matching 
-      ############ 
-      
+
+      ############
+      # lv1 based matching
+      ############
+
       gex_db$v_H_lv1= unlist(lapply(match.index_lv1_H, function(x){ifelse(is.na(x),NA, v_H[x])}))
       gex_db$d_H_lv1= unlist(lapply(match.index_lv1_H, function(x){ifelse(is.na(x),NA, d_H[x])}))
       gex_db$j_H_lv1= unlist(lapply(match.index_lv1_H, function(x){ifelse(is.na(x),NA, j_H[x])}))
       gex_db$cdr3aa_H_lv1= unlist(lapply(match.index_lv1_H, function(x){ifelse(is.na(x),NA, cdr3aa_H[x])}))
       gex_db$cluster_cb_unique= unlist(lapply(match.index_lv1_H, function(x){ifelse(is.na(x),NA, cluster_cb_unique_H[x])}))
-      
-      
-      gex_db$v_L_lv1= unlist(lapply(match.index_lv1_L, function(x){ifelse(is.na(x),NA, v_L[x])})) 
+
+
+      gex_db$v_L_lv1= unlist(lapply(match.index_lv1_L, function(x){ifelse(is.na(x),NA, v_L[x])}))
       gex_db$j_L_lv1= unlist(lapply(match.index_lv1_L, function(x){ifelse(is.na(x),NA, j_L[x])}))
       gex_db$cdr3aa_L_lv1= unlist(lapply(match.index_lv1_L, function(x){ifelse(is.na(x),NA, cdr3aa_L[x])}))
-      
-      ############ 
+
+      ############
       # save the singleR annotated file
-      ############ 
+      ############
       write_rds(x=gex_db,file =paste0(output_summary,name.i,"_singleR_AnnoSC_HX.rds") )
-      
+
     }
-    
+
     all_sc[[i]]<- gex_db
-    
+
   }
   all_sc <- setNames(all_sc,nm=newName)
   sapply(all_sc, dim)
   return(all_sc)
-  
+
 }
 
 
@@ -200,12 +200,12 @@ combineSc_Bcr_singleR<- function(file_list, output_summary,inputBcr,inputSc){
 # general function for dotplot
 # input :
 #         -sc data()
-#         -Dot plot for features  
+#         -Dot plot for features
 #==============================================================================#
 
 # FUNCTION
 customMarkers_bySampleByCluster<- function(df,markers.to.plot,outputPlotPath,threshold.cell){
-  
+
   ######################
   # data formatting: extract pure b cells
   ######################
@@ -215,27 +215,27 @@ customMarkers_bySampleByCluster<- function(df,markers.to.plot,outputPlotPath,thr
     axis.title.y = element_blank(),
     axis.text.x = element_text(angle =90,   hjust=1, size=20, face="bold"),
     axis.text.y =  element_text( size=20, face="bold"))
-  
+
   #Idents(immune.combinedB) <- immune.combinedB$label.main
   immune.combined_test <- df
-  
+
   Idents(immune.combined_test)<- immune.combined_test$SingleR.labels
-  
+
   immune.combined_fine_B <- subset(immune.combined_test,
                                    idents=grep(pattern = "B cells|Plasmablasts", x = immune.combined_test$SingleR.labels,value = T))
   Idents(immune.combined_fine_B)<- immune.combined_fine_B$sample
-  
+
   #all_main_colours<- c( "HD1"="#b2df8a",  "HD2"="#762a83", "HD1_stD2"="#08519c", "p36D4"="#e31a1c","p36D45"="#9ecae1","p36D169"="#ff7f00","p45D24"="#c51b7d","p45D164"="gray95")
-  
+
   all_main_colours<- c( "#b2df8a", "#762a83", "#08519c", "#e31a1c","#9ecae1","#ff7f00","#c51b7d","gray95","red","green","blue")
-  
-  
+
+
   immune.combined_fine_B$sample <- factor(immune.combined_fine_B$sample ,
                                           levels =c("HD2","HD1","HD1_stD2","p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164")  )
-  
+
   #levels(immune.combined_fine_B$sample)<- c("HD1","HD2","HD1_stD2","p36D4","p36D45","p36D169","p45D24","p45D164")
   #Idents(immune.combined_fine_B) <- factor(Idents(immune.combined_fine_B),  levels = c("Exhausted B cells","Switched memory B cells","Non-switched memory B cells","Naive B cells"))
-  
+
   ###########################################
   # PLOT BY SAMPLE
   ###########################################
@@ -251,8 +251,8 @@ customMarkers_bySampleByCluster<- function(df,markers.to.plot,outputPlotPath,thr
   dimplot$data$id <- factor(x = dimplot$data$id, levels = c("HD2", "HD1", "HD1_stD2","p16D9","p18D13","p36D4","p36D45","p36D169" , "p45D24", "p45D164"))
   dimplot_flip<- dimplot +  coord_flip() & My_Theme_Dot
   dimplot_flip
-  
-  
+
+
 }
 
 
@@ -267,34 +267,36 @@ customMarkers_bySampleByCluster<- function(df,markers.to.plot,outputPlotPath,thr
 
 
 #==============================================================================#
-# heatmap_VJH 
+# heatmap_VJ
+# df_fileList: file list ; df_bcrInputPath: lv1_corrected BCR; rdsInputPath: QCed sc data
+# type: "heavy"/"light"/"HL"
 #==============================================================================#
-heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type,vjSummary){
+heatmap_VJ <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type,vjSummary){
   final<- list()
   for(i in df_fileList){
-    
+
     # Read GEX data
     gex_db <- readRDS(paste0(rdsInputPath,i,".rds"))
-    
+
     # load ref data for singleR prediction
     ref_Monaco <- MonacoImmuneData()
     minPercent.mt<- 15
-    gex_db<- subset(gex_db, subset = nFeature_RNA > 150 & nFeature_RNA < 2000& percent.mt < minPercent.mt ) 
+    gex_db<- subset(gex_db, subset = nFeature_RNA > 150 & nFeature_RNA < 2000& percent.mt < minPercent.mt )
     # https://www.biostars.org/p/9479638/
     # predict gex
-    
+
     pred.gex_db<-SingleR(GetAssayData(gex_db, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.main)
-    
+
     pred.gex_db_fine<-SingleR(GetAssayData(gex_db, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.fine)
     # assign the label.main to p36D1 meta data
     gex_db$label.main<- pred.gex_db$labels
     gex_db$SingleR.labels <- pred.gex_db_fine$labels
-    
+
     if(type=="heavy"){
       # Read BCR data
       bcr_db <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectHeavyBcr.tsv"))
       ## Standardize cell IDs
-      
+
       if(i=="p36T1"){
         sample_id<-"p36_T1"
       }else if(i=="p36T2"){
@@ -318,50 +320,50 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       }else {
         print("now only support p36 time points")
       }
-      
+
       bcr_db$sample<- sample_id
-      # Make cell IDs in BCR match those in Seurat Object   
-      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)   
-      
-      # NOTE: cell_id becomes the cluster_cb after lv2 correction  
+      # Make cell IDs in BCR match those in Seurat Object
+      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)
+
+      # NOTE: cell_id becomes the cluster_cb after lv2 correction
       bcr_db$cell_id_unique = paste0(bcr_db$sample, "_", bcr_db$cell_id)
       bcr_db$cluster_cb_unique = paste0(bcr_db$sample, "_", bcr_db$cluster_cb)
-      
-      bcr_db$cell_id_unique[1:4]   
-      
+
+      bcr_db$cell_id_unique[1:4]
+
       # subset heavy bcr for match to have unique cell_id(because paired light chain will have the same cell_id)
       # Note: lv2 correction already select the heavy chain
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
-      
+
       #####################
       # matching without lv2 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index = match(Cells(gex_db), bcr_db$cell_id_unique)
-      
+
       #####################
       # matching after lv2 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv2 = match(Cells(gex_db), bcr_db$cluster_cb_unique)
-      
-      
+
+
       # In this data, not all cells are B cells.
       # What proportion of cells don’t have BCRs?
       scWithOutMatchedBcr<- NULL
       scWithOutMatchedBcr$scMissBcr <- mean(!is.na(match.index))
       scWithOutMatchedBcr$scMissBcr_lv2 <- mean(!is.na(match.index_lv2))
       scWithOutMatchedBcr$id <-i
-      
+
       final[[i]]<- scWithOutMatchedBcr
-      
-      
+
+
       #------------------------------------------------------------------------
       ### Find the BCR cells in the GEX data
-      
+
       # Match indices to find the position of the BCR cells in the GEX data
       # Different from finding the position of the GEX cells in the BCR data!
-      
+
       match.index = match(bcr_db$cluster_cb_unique, Cells(gex_db))
       # What proportion of BCRs don’t have GEX information?
       mean(is.na(match.index))
@@ -371,7 +373,7 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
       bcr_db$gex_annotation= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
       bcr_db$gex_annotation[1:5]
-      
+
       # Add UMAP coordinates to BCR data
       #umap1 = gex_db@reductions$umap@cell.embeddings[,1]
       #umap2 = gex_db@reductions$umap@cell.embeddings[,2]
@@ -379,14 +381,14 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       #bcr_db$gex_umap2= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap2[x])}))
       bcr_db[1:5,] %>%
         select(cell_id,gex_annotation)
-      
-      
-      
+
+
+
       ### Remove cells without GEX data
       # Remove cells that didn’t match
       bcr_db = filter(bcr_db, !is.na(gex_annotation))
-      
-      
+
+
       ################################################################
       # UMAP cluster labeling need to be customized for individual sample
       # !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -395,15 +397,15 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       col_anno = c("Exhausted B cells"="dodgerblue2", "Naive B cells"="firebrick2", "Non-switched memory B cells"="seagreen","Plasmablasts"="darkgoldenrod2", "Switched memory B cells"="black")
       # Plot UMAP from bcr_db
       #pdf(paste0(outputPath,i, "umap_from_bcr_db.pdf"))
-      
+
       #bcr_umap <- ggplot(bcr_db) +geom_point(aes(x = gex_umap1, y = gex_umap2, color = gex_annotation)) +scale_colour_manual(values=col_anno) +theme_bw()
-      
+
       #print(bcr_umap)
       #dev.off()
       #----------------------------------------------------------------------
       # bcr_dbH <-bcr_db[grep("IGH",bcr_db$v_call,invert = F),] # It's already Heavy chain after lv2 correction
-      
-      
+
+
       bcr_hm1 <- bcr_db  %>% select(sequence_id,v_call,j_call,gex_annotation)
       # only use the 1st v gene hit
       bcr_hm1$v_call <- sapply(str_split(bcr_hm1$v_call, pattern = "-"),"[",1)
@@ -411,29 +413,29 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       head(bcr_hm1)
       bcr_hm1$v_call <- factor(bcr_hm1$v_call, levels = c("IGHV1", "IGHV2", "IGHV3", "IGHV4", "IGHV5", "IGHV6", "IGHV7" ))
       bcr_hm1$j_call <- factor(bcr_hm1$j_call, levels = c("IGHJ1", "IGHJ2", "IGHJ3", "IGHJ4", "IGHJ5", "IGHJ6"))
-      
-      
-      
+
+
+
       #----------
       # https://www.quora.com/How-do-I-get-a-frequency-count-based-on-two-columns-variables-in-an-R-dataframe
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
       freq <- table(bcr_hm1$v_call,bcr_hm1$j_call)
       freq
-      
-      # write the IGHV AND IGHJ frequency 
+
+      # write the IGHV AND IGHJ frequency
       cellNumber= dim(bcr_hm1)
       totalNumber=length(gex_db$label.main)
       IGHV_Count=rowSums(freq)
       IGJ_Count=colSums(freq)
       i.sum <- list(totalNumber,cellNumber,IGHV_Count, IGJ_Count)
-      
+
       lapply(i.sum, function(x) write.table( data.frame(x), file =paste0(vjSummary,i,"_IGH_VJ_countSummary.csv") , append= T, sep=',' ))
-      
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){(x - mean(x)) / sd(x)}
-      
+
       data_subset_norm <- t(apply(freq, 1, cal_z_score))
-      
+
       #################
       # prepare row and column annotation bar plot
       #################
@@ -441,71 +443,71 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       v_h<-as.data.frame(table(bcr_hm1$v_call))
       j_h<-as.data.frame(table(bcr_hm1$j_call))
       # topN for labeling
-      
+
       # topN < group_by(vj) %>% summarise(n=n()) %>%  arrange(desc(n)) %>%  top_n()
       topN <- rownames_to_column(v_h) %>% arrange(desc(Freq)) %>%top_n(10,v_h$Freq)
       topN_nb<- as.numeric(topN$rowname)
-      
-      
+
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         V_count = anno_barplot(v_h$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 0)
       v_r_ha1 = rowAnnotation(
         V_count = anno_barplot(v_h$Freq))
-      
+
       v_c_ha = HeatmapAnnotation(J_count = anno_barplot(j_h$Freq),which = "col")
-      
-      
-      
+
+
+
       #-------------------------------------------------------------------------
       # heatmap
-      
-      
+
+
       #pheatmap(data_subset_norm)
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
-      
-      
+
+
       #--------------------------------------------------------------------
-      # adjust legend size 
+      # adjust legend size
       # https://github.com/jokergoo/ComplexHeatmap/issues/3
       col_fun = colorRamp2(c(-5, 0, 4), c("green", "white", "red"))
       # lgd = list(title = "Freq", col_fun = col_fun,legend_gp = gpar(fontsize=20), labels_gp = gpar(font=200))
       lgd = list(title = "Freq", col_fun = col_fun,labels_gp = gpar(fontsize=14))
-      
-      
-      
-      
+
+
+
+
       #----------------------------------------------------------------------
-      
-      
-      
+
+
+
       col_fun1a = colorRamp2(c(0, max(v_h$Freq)/100, max(v_h$Freq)/4), c(  "white", "orange","red"))
       ph1a<- Heatmap(freq, column_title = paste0(i," heavy VJ gene usage"),
                      name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun1a,
                      row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                      top_annotation = v_c_ha, right_annotation =v_r_ha1,
                      row_names_side = "left",heatmap_legend_param =lgd,
-                     width = ncol(freq)*unit(10, "mm"), 
+                     width = ncol(freq)*unit(10, "mm"),
                      height = nrow(freq)*unit(10, "mm")) # turn off row clustering
-      
+
       draw(ph1a)
-      
+
       #-------------------------------------------------------------------------
-      
-      
+
+
       # save as png file
       png(filename=paste0(outputPath,i,"_",type,"_main_VJ.png"),width=16,height=16,units="cm",res=300)
       draw(ph1a)
       dev.off()
-      
-      
-      
+
+
+
     }else if(type=="light"){
       # Read BCR data
       bcr_db <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectLightBcr.tsv"))
       ## Standardize cell IDs
-      
+
       if(i=="p36T1"){
         sample_id<-"p36_T1"
       }else if(i=="p36T2"){
@@ -529,50 +531,50 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       }else {
         print("now only support p36 time points")
       }
-      
+
       bcr_db$sample<- sample_id
-      # Make cell IDs in BCR match those in Seurat Object   
-      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)   
-      
-      # NOTE: cell_id becomes the cluster_cb after lv2 correction  
+      # Make cell IDs in BCR match those in Seurat Object
+      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)
+
+      # NOTE: cell_id becomes the cluster_cb after lv2 correction
       bcr_db$cell_id_unique = paste0(bcr_db$sample, "_", bcr_db$cell_id)
       bcr_db$cluster_cb_unique = paste0(bcr_db$sample, "_", bcr_db$cluster_cb)
-      
-      bcr_db$cell_id_unique[1:4]   
-      
+
+      bcr_db$cell_id_unique[1:4]
+
       # subset heavy bcr for match to have unique cell_id(because paired light chain will have the same cell_id)
       # Note: lv2 correction already select the heavy chain
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
-      
+
       #####################
       # matching without lv2 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index = match(Cells(gex_db), bcr_db$cell_id_unique)
-      
+
       #####################
       # matching after lv2 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv2 = match(Cells(gex_db), bcr_db$cluster_cb_unique)
-      
-      
+
+
       # In this data, not all cells are B cells.
       # What proportion of cells don’t have BCRs?
       scWithOutMatchedBcr<- NULL
       scWithOutMatchedBcr$scMissBcr <- mean(!is.na(match.index))
       scWithOutMatchedBcr$scMissBcr_lv2 <- mean(!is.na(match.index_lv2))
       scWithOutMatchedBcr$id <-i
-      
+
       final[[i]]<- scWithOutMatchedBcr
-      
-      
+
+
       #------------------------------------------------------------------------
       ### Find the BCR cells in the GEX data
-      
+
       # Match indices to find the position of the BCR cells in the GEX data
       # Different from finding the position of the GEX cells in the BCR data!
-      
+
       match.index = match(bcr_db$cluster_cb_unique, Cells(gex_db))
       # What proportion of BCRs don’t have GEX information?
       mean(is.na(match.index))
@@ -582,7 +584,7 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
       bcr_db$gex_annotation= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
       bcr_db$gex_annotation[1:5]
-      
+
       # Add UMAP coordinates to BCR data
       #umap1 = gex_db@reductions$umap@cell.embeddings[,1]
       #umap2 = gex_db@reductions$umap@cell.embeddings[,2]
@@ -590,14 +592,14 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       #bcr_db$gex_umap2= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap2[x])}))
       bcr_db[1:5,] %>%
         select(cell_id,gex_annotation)
-      
-      
-      
+
+
+
       ### Remove cells without GEX data
       # Remove cells that didn’t match
       bcr_db = filter(bcr_db, !is.na(gex_annotation))
-      
-      
+
+
       ################################################################
       # UMAP cluster labeling need to be customized for individual sample
       # !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -606,49 +608,49 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       col_anno = c("Exhausted B cells"="dodgerblue2", "Naive B cells"="firebrick2", "Non-switched memory B cells"="seagreen","Plasmablasts"="darkgoldenrod2", "Switched memory B cells"="black")
       # Plot UMAP from bcr_db
       #pdf(paste0(outputPath,i, "umap_from_bcr_db.pdf"))
-      
+
       #bcr_umap <- ggplot(bcr_db) +geom_point(aes(x = gex_umap1, y = gex_umap2, color = gex_annotation)) +scale_colour_manual(values=col_anno) +theme_bw()
-      
+
       #print(bcr_umap)
       #dev.off()
       #----------------------------------------------------------------------
-      
+
       # bcr_dbH <-bcr_db[grep("IGH",bcr_db$v_call,invert = F),] # It's already Heavy chain after lv2 correction
-      
-      
+
+
       bcr_hm1 <- bcr_db  %>% select(sequence_id,v_call,j_call,gex_annotation)
       # only use the 1st v gene hit
       bcr_hm1$v_call <- sapply(str_split(bcr_hm1$v_call, pattern = "-"),"[",1)
-      
-      # replace D in all light chain k v 
+
+      # replace D in all light chain k v
       bcr_hm1$v_call <-  str_remove(bcr_hm1$v_call,pattern = "D")
       bcr_hm1$j_call <- sapply(str_split(bcr_hm1$j_call, pattern = "\\*"),"[",1)
       head(bcr_hm1)
-      # add level to the V and J gene 
+      # add level to the V and J gene
       bcr_hm1$v_call <- factor(bcr_hm1$v_call, levels = c("IGKV1","IGKV2","IGKV3",  "IGKV4",  "IGKV5",  "IGKV6", "IGKV7", "IGLV1",  "IGLV2",  "IGLV3",  "IGLV4",  "IGLV5",  "IGLV6",  "IGLV7",  "IGLV8",  "IGLV9","IGLV10" ,"IGLV11" ))
       bcr_hm1$j_call <- factor( bcr_hm1$j_call , levels = c("IGKJ1", "IGKJ2", "IGKJ3", "IGKJ4", "IGKJ5", "IGLJ1", "IGLJ2", "IGLJ3","IGLJ4","IGLJ5","IGLJ6", "IGLJ7" ) )
-      
-      
+
+
       freq <- table(bcr_hm1$v_call,bcr_hm1$j_call)
-      
-      # write the IGHV AND IGHJ frequency 
+
+      # write the IGHV AND IGHJ frequency
       totalNumber=length(gex_db$label.main)
       cellNumber= dim(bcr_hm1)
       IGV_Count=rowSums(freq)
       IGJ_Count=colSums(freq)
       i.sum <- list(totalNumber,cellNumber,IGV_Count, IGJ_Count)
-      
+
       lapply(i.sum, function(x) write.table( data.frame(x), file =paste0(vjSummary,i,"_light_VJ_countSummary.csv") , append= T, sep=',' ))
       #----------
       # https://www.quora.com/How-do-I-get-a-frequency-count-based-on-two-columns-variables-in-an-R-dataframe
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
-      
-      
+
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){(x - mean(x)) / sd(x)}
       data_subset_norm <- t(apply(freq, 1, cal_z_score))
-      
-      
+
+
       #################
       # prepare row and column annotation bar plot
       #################
@@ -657,39 +659,39 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       j_l<-as.data.frame(table(bcr_hm1$j_call))
       head(v_l)
       # topN for labeling
-      
+
       # topN < group_by(vj) %>% summarise(n=n()) %>%  arrange(desc(n)) %>%  top_n()
       topN <- rownames_to_column(v_l) %>% arrange(desc(Freq)) %>%top_n(10,v_l$Freq)
       topN_nb<- as.numeric(topN$rowname)
       head(topN_nb)
-      
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         V_count = anno_barplot(v_l$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 270)
-      
+
       v_r_ha1 = rowAnnotation(
         V_count = anno_barplot(v_l$Freq) )
-      
+
       v_c_ha = HeatmapAnnotation(J_count = anno_barplot(j_l$Freq),which = "col")
-      
+
       # heatmap
-      
+
       #pheatmap(data_subset_norm)
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
       col_fun = colorRamp2(c(-5, 0, 4), c("green", "white", "red"))
       lgd = list(title = "Freq", col_fun = col_fun ,labels_gp = gpar(fontsize=14))
-      
-      
-      
-      # for rotated light heatmap 
+
+
+
+      # for rotated light heatmap
       # top annotation
       #v_c_ha1 = HeatmapAnnotation(J_count = anno_barplot(j_l$Freq),which = "col")
       v_c_ha_a = HeatmapAnnotation(V_count = anno_barplot(v_l$Freq),which = "col")
       # side annotation
       #v_r_ha1 = rowAnnotation(V_count = anno_barplot(v_l$Freq) )
       v_r_ha_a = rowAnnotation(J_count = anno_barplot(j_l$Freq) )
-      # plot 
+      # plot
       t_freq <- t(freq)
       col_fun1a = colorRamp2(c(0, sum(v_l$Freq)/500, max(v_l$Freq)/5), c(  "white", "orange","red"))
       ph1b<- Heatmap(t_freq, column_title = paste0(i," light VJ gene usage"),
@@ -697,31 +699,31 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
                      row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                      top_annotation = v_c_ha_a, right_annotation =v_r_ha_a,
                      row_names_side = "left",heatmap_legend_param =lgd,
-                     width = ncol(t_freq)*unit(5, "mm"), 
+                     width = ncol(t_freq)*unit(5, "mm"),
                      height = nrow(t_freq)*unit(5, "mm")) # turn off row clustering
-      
+
       draw(ph1b)
-      
-      
+
+
       #-------------------------------------------------------------------------
-      
-      
-      
+
+
+
       png(filename=paste0(outputPath,i,"_",type,"_main_VJ.png"),width=20,height=16,units="cm",res=300)
       draw(ph1b)
       dev.off()
-      
+
     }else if(type=="HL"){
-      
+
       #########################################################################
       # type="HL"
       #########################################################################
-      
+
       # Read BCR data
       bcr_dbH <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectHeavyBcr.tsv"))
       bcr_dbL <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectLightBcr.tsv"))
       ## Standardize cell IDs
-      
+
       if(i=="p36T1"){
         sample_id<-"p36_T1"
       }else if(i=="p36T2"){
@@ -745,40 +747,40 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       }else {
         print("now only support p36 time points")
       }
-      
+
       bcr_dbH$sample<- sample_id
       bcr_dbL$sample<- sample_id
       dim(bcr_dbH)
       dim(bcr_dbL)
-      
-      # Make cell IDs in BCR match those in Seurat Object   
-      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)   
-      
-      # NOTE: cell_id becomes the cluster_cb after lv2 correction  
+
+      # Make cell IDs in BCR match those in Seurat Object
+      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)
+
+      # NOTE: cell_id becomes the cluster_cb after lv2 correction
       bcr_dbH$cell_id_unique = paste0(bcr_dbH$sample, "_", bcr_dbH$cell_id)
       bcr_dbH$cluster_cb_unique = paste0(bcr_dbH$sample, "_", bcr_dbH$cluster_cb)
-      
+
       bcr_dbL$cell_id_unique = paste0(bcr_dbL$sample, "_", bcr_dbL$cell_id)
       bcr_dbL$cluster_cb_unique = paste0(bcr_dbL$sample, "_", bcr_dbL$cluster_cb)
-      bcr_dbL$cell_id_unique[1:4]   
-      
+      bcr_dbL$cell_id_unique[1:4]
+
       # subset heavy bcr for match to have unique cell_id(because paired light chain will have the same cell_id)
       # Note: lv2 correction already select the heavy chain
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
-      
+
       #####################
       # matching without lv2 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.indexH = match(Cells(gex_db), bcr_dbH$cell_id_unique)
-      
+
       #####################
       # matching after lv2 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv2H = match(Cells(gex_db), bcr_dbH$cluster_cb_unique)
-      
-      
+
+
       # In this data, not all cells are B cells.
       # What proportion of cells don’t have BCRs?
       scWithOutMatchedBcrH<- NULL
@@ -786,16 +788,16 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       scWithOutMatchedBcrH$scMatchBcr_lv2 <- mean(!is.na(match.index_lv2H))
       scWithOutMatchedBcrH$id <-i
       scWithOutMatchedBcrH
-      
+
       final[[i]]<- scWithOutMatchedBcrH
-      
-      
+
+
       #------------------------------------------------------------------------
       ### Find the BCR cells in the GEX data
-      
+
       # Match indices to find the position of the BCR cells in the GEX data
       # Different from finding the position of the GEX cells in the BCR data!
-      
+
       match.indexH = match(bcr_dbH$cluster_cb_unique, Cells(gex_db))
       # What proportion of BCRs don’t have GEX information?
       mean(is.na(match.indexH))
@@ -805,7 +807,7 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
       bcr_dbH$gex_annotation= unlist(lapply(match.indexH,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
       bcr_dbH$gex_annotation[1:5]
-      
+
       # Add UMAP coordinates to BCR data
       #umap1 = gex_db@reductions$umap@cell.embeddings[,1]
       #umap2 = gex_db@reductions$umap@cell.embeddings[,2]
@@ -813,14 +815,14 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       #bcr_db$gex_umap2= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap2[x])}))
       bcr_dbH[1:5,] %>%
         select(cell_id_unique,gex_annotation)
-      
-      
-      
+
+
+
       ### Remove cells without GEX data
       # Remove cells that didn’t match
       bcr_dbH = filter(bcr_dbH, !is.na(gex_annotation))
-      
-      
+
+
       ################################################################
       # UMAP cluster labeling need to be customized for individual sample
       # !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -829,9 +831,9 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       col_anno = c("Exhausted B cells"="dodgerblue2", "Naive B cells"="firebrick2", "Non-switched memory B cells"="seagreen","Plasmablasts"="darkgoldenrod2", "Switched memory B cells"="black")
       # Plot UMAP from bcr_db
       #pdf(paste0(outputPath,i, "umap_from_bcr_db.pdf"))
-      
+
       #bcr_umap <- ggplot(bcr_db) +geom_point(aes(x = gex_umap1, y = gex_umap2, color = gex_annotation)) +scale_colour_manual(values=col_anno) +theme_bw()
-      
+
       #print(bcr_umap)
       #dev.off()
       #----------------------------------------------------------------------
@@ -840,44 +842,44 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       bcr_dbH$v_call <- sapply(str_split(bcr_dbH$v_call, pattern = "-"),"[",1)
       bcr_dbH$j_call <- sapply(str_split(bcr_dbH$j_call, pattern = "\\*"),"[",1)
       head(bcr_dbH[1:4])
-      
-      
-      
+
+
+
       # Format the V J gene usage for light
       # only use the 1st v gene hit
       bcr_dbL$v_call <- sapply(str_split(bcr_dbL$v_call, pattern = "-"),"[",1)
-      
-      # replace D in all light chain k v 
+
+      # replace D in all light chain k v
       bcr_dbL$v_call <-  str_remove(bcr_dbL$v_call,pattern = "D")
-      
+
       bcr_dbL$j_call <- sapply(str_split(bcr_dbL$j_call, pattern = "\\*"),"[",1)
       head(bcr_dbL)
-      
+
       # combine H L BCR
       bcr_dbH_sel <- bcr_dbH %>%
         select(sequence_id,v_call,j_call,gex_annotation,cluster_cb_unique) %>%
         mutate(vj=paste0(v_call,"_",j_call))
-      
+
       bcr_dbL_sel <- bcr_dbL %>% select(sequence_id,v_call,j_call,cluster_cb_unique)%>%
         mutate(vj=paste0(v_call,"_",j_call))
-      
+
       bcr_HL <- inner_join(x=bcr_dbH_sel,y=bcr_dbL_sel,
                            by=c("cluster_cb_unique"),suffix = c("_heavy","_light"))
-      
+
       # add level to the HV and LV
       bcr_HL$v_call_light <- factor(bcr_HL$v_call_light, levels = c("IGKV1","IGKV2","IGKV3",  "IGKV4",  "IGKV5",  "IGKV6", "IGKV7", "IGLV1",  "IGLV2",  "IGLV3",  "IGLV4",  "IGLV5",  "IGLV6",  "IGLV7",  "IGLV8",  "IGLV9","IGLV10" ,"IGLV11" ))
-      
+
       bcr_HL$v_call_heavy <- factor(bcr_HL$v_call_heavy, levels=c("IGHV1", "IGHV2", "IGHV3", "IGHV4", "IGHV5", "IGHV6", "IGHV7"))
-      
+
       #########################################################################
       # part-1. HL VJ  heatmap
       #########################################################################
-      
+
       bcr_HL_sel<- bcr_HL %>% select(vj_heavy, vj_light,gex_annotation) %>% mutate(HL_vj=paste0(vj_heavy,"_",vj_light))
-      
+
       dim(bcr_HL_sel)
-      
-      
+
+
       #####################################
       # 1. HL VJ  heatmap
       # highlight top N based on pure heavy vj count
@@ -886,15 +888,15 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
       freq <- table(bcr_HL_sel$vj_heavy,bcr_HL_sel$vj_light)
       head(freq)
-      
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){
         (x - mean(x)) / sd(x)
       }
-      
+
       data_subset_norm <- t(apply(freq, 1, cal_z_score))
       data_subset_norm
-      
+
       #################
       # prepare row and column annotation bar plot
       #################
@@ -903,85 +905,85 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       vj_L<-as.data.frame(table(bcr_HL_sel$vj_light))
       vj_HL<- as.data.frame(table(bcr_HL_sel$HL_vj))
       # topN for labeling
-      
+
       # topN based on heavy chain vj
       topN <- rownames_to_column(vj_H) %>% arrange(desc(Freq)) %>%top_n(5,vj_H$Freq)
       topN_nb<- as.numeric(topN$rowname)
-      
-      
+
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         H_VJc = anno_barplot(vj_H$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 0)
-      
+
       v_r_ha1 = rowAnnotation(H_VJc = anno_barplot(vj_H$Freq) )
-      
+
       v_c_ha = HeatmapAnnotation(L_VJc = anno_barplot(vj_L$Freq),which = "col")
       #-------------------------------------------------------------------------
       # heatmap
       pdf(file=paste0(outputPath,i,"_lv1_HL_mainVJ_usageHeatmap.pdf"))
-      
+
       #pheatmap(data_subset_norm)
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
       col_fun = colorRamp2(c(-3, 0, 5), c("green", "white", "red"))
       lgd = list(title = "Freq", col_fun = col_fun ,labels_gp = gpar(fontsize=14))
-      
+
       ph1<- Heatmap(data_subset_norm, column_title = paste0(i," heavy VJ vs light VJ gene usage(scaled)"),
                     name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                     top_annotation = v_c_ha, right_annotation =v_r_ha,
                     row_names_side = "left", heatmap_legend_param = lgd,
                     show_column_names = T, show_row_names = T,
-                    width = ncol(data_subset_norm)*unit(2.5, "mm"), 
+                    width = ncol(data_subset_norm)*unit(2.5, "mm"),
                     height = nrow(data_subset_norm)*unit(2.5, "mm")) # turn off row clustering
-      
+
       draw(ph1)
-      
+
       col_fun1a = colorRamp2(c(0, max(vj_H$Freq)/100, max(vj_H$Freq)/4), c(  "white", "orange","red"))
       ph1a<- Heatmap(freq, column_title = paste0(i,"  heavy VJ vs light VJ gene usage"),
                      name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun1a,
                      row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                      top_annotation = v_c_ha, right_annotation =v_r_ha1,
                      row_names_side = "left",heatmap_legend_param =lgd,
-                     width = ncol(freq)*unit(2.5, "mm"), 
+                     width = ncol(freq)*unit(2.5, "mm"),
                      height = nrow(freq)*unit(2.5, "mm")) # turn off row clustering
-      
+
       draw(ph1a)
-      
-      
-      
+
+
+
       #####################################
       # 2. HL VJ  heatmap
       # top N based on paired HL vj count but only label the heavy VJ because, same heavy vj has different light vj
       #####################################
-      
+
       # topN based on heavy and light paired  vj
       row_vjH <- rownames_to_column(vj_H)
-      
+
       # combine heavy vj row order to the bcr data
       order_bcr_HL_sel<- inner_join(x=row_vjH, y=bcr_HL_sel, by=c("Var1"="vj_heavy"))
       head(order_bcr_HL_sel)
-      
+
       # extract top n paired heavy and light vj
       topN_hl <- rownames_to_column(vj_HL) %>% arrange(desc(Freq)) %>%top_n(5,vj_HL$Freq)
-      
+
       # extract the row number and corresponding heavy vj genes
       topN_hl_order<- order_bcr_HL_sel %>% filter(HL_vj%in%topN_hl$Var1)  %>%
         select(rowname,Var1)  %>% unique()
       topN_hl_order
-      
+
       # extract the row number
       topN_nb_hl_order<- as.numeric(topN_hl_order$rowname)
       topN_nb_hl_order
-      
-      
+
+
       # project to heavy vj data for corresponding row number
       HL_vj_r_ha = rowAnnotation(
         H_vj_count = anno_barplot(vj_H$Freq),foo = anno_mark(at = topN_nb_hl_order, labels = topN_hl_order$Var1))
-      
-      
+
+
       lgd = list(title = "Freq", col_fun = col_fun ,labels_gp = gpar(fontsize=14))
-      
+
       # plot
       ph2<- Heatmap(data_subset_norm, column_title = paste0(i," heavy VJ vs light VJ gene usage(scaled) \n topN paired VJ genes"),
                     name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
@@ -989,55 +991,55 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
                     top_annotation = v_c_ha, right_annotation =HL_vj_r_ha,
                     row_names_side = "left", heatmap_legend_param = lgd,
                     show_column_names = FALSE, show_row_names = FALSE,
-                    width = ncol(data_subset_norm)*unit(2.5, "mm"), 
+                    width = ncol(data_subset_norm)*unit(2.5, "mm"),
                     height = nrow(data_subset_norm)*unit(2.5, "mm")) # turn off row clustering
-      
+
       draw(ph2)
-      
+
       col_fun1a = colorRamp2(c(0, max(vj_H$Freq)/500, max(vj_H$Freq)/4), c(  "white", "orange","red"))
       ph2a<- Heatmap(freq, column_title = paste0(i," heavy VJ vs light VJ gene usage(1/500-orange)"),
                      name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun1a,
                      row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                      top_annotation = v_c_ha, right_annotation =v_r_ha1,
                      row_names_side = "left",heatmap_legend_param =lgd,
-                     width = ncol(freq)*unit(2.5, "mm"), 
+                     width = ncol(freq)*unit(2.5, "mm"),
                      height = nrow(freq)*unit(2.5, "mm")) # turn off row clustering
-      
+
       draw(ph2a)
-      
+
       dev.off()
-      
-      
+
+
       #########################################################################
       # Part-2: heavy and light v gene heatmap
       #########################################################################
       bcr_HL_V_sel<- bcr_HL %>% select(v_call_heavy, v_call_light,gex_annotation)  %>%
         mutate(HL_v=paste0(v_call_heavy,"_",v_call_light))
-      
+
       head(bcr_HL_V_sel)
-      
-      
-      
-      
+
+
+
+
       # https://www.quora.com/How-do-I-get-a-frequency-count-based-on-two-columns-variables-in-an-R-dataframe
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
       freq_v <- table(bcr_HL_V_sel$v_call_heavy, bcr_HL_V_sel$v_call_light)
       freq_v
-      
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){
         (x - mean(x)) / sd(x)
       }
-      
+
       data_subset_norm_v <- t(apply(freq_v, 1, cal_z_score))
       data_subset_norm_v
-      
-      
+
+
       #####################################
       # 1 HL V  heatmap
       # top N based on paired HL vj count but only label the heavy VJ because, same heavy vj has different light vj
       #####################################
-      
+
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
       col_fun = colorRamp2(c(-3, 0, 5), c("green", "white", "red"))
@@ -1048,114 +1050,114 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
       v_h<-as.data.frame(table(bcr_HL_V_sel$v_call_heavy))
       v_l<-as.data.frame(table(bcr_HL_V_sel$v_call_light))
       # topN for labeling
-      
+
       # topN < group_by(vj) %>% summarise(n=n()) %>%  arrange(desc(n)) %>%  top_n()
       topN <- rownames_to_column(v_h) %>% arrange(desc(Freq)) %>%top_n(10,v_h$Freq)
       topN_nb<- as.numeric(topN$rowname)
       topN_nb
-      
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         H_Vc = anno_barplot(v_h$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 00)
-      
+
       v_r_ha1 = rowAnnotation(H_Vc = anno_barplot(v_h$Freq) )
-      
+
       v_c_ha = HeatmapAnnotation(L_Vc = anno_barplot(v_l$Freq),which = "col")
       lgd = list(title = "Freq", col_fun = col_fun ,labels_gp = gpar(fontsize=14))
-      
-      
+
+
       ph1<- Heatmap(data_subset_norm_v, column_title = paste0(i," HL v gene usage(scaled)"),
                     name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                     top_annotation = v_c_ha, right_annotation =v_r_ha,
                     row_names_side = "left", heatmap_legend_param = lgd,
-                    width = ncol(data_subset_norm_v)*unit(3, "mm"), 
+                    width = ncol(data_subset_norm_v)*unit(3, "mm"),
                     height = nrow(data_subset_norm_v)*unit(3, "mm")) # turn off row clustering
       draw(ph1)
-      
-      
+
+
       col_fun1a = colorRamp2(c(0, max(v_h$Freq)/500, max(v_h$Freq)/4), c(  "white", "orange","red"))
       ph1a<- Heatmap(freq_v, column_title = paste0(i," HL v gene usage"),
                      name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun1a,
                      row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                      top_annotation = v_c_ha, right_annotation =v_r_ha1,
                      row_names_side = "left",heatmap_legend_param =lgd,
-                     width = ncol(freq_v)*unit(3, "mm"), 
+                     width = ncol(freq_v)*unit(3, "mm"),
                      height = nrow(freq_v)*unit(3, "mm")) # turn off row clustering
-      
+
       draw(ph1a)
       #----------------------------------------------------------------------
-      
+
       pdf(file=paste0(outputPath,i,"_lv1_HL_mainV_usageHeatmap.pdf"))
-      
+
       draw(ph1)
       draw(ph1a)
-      
-      
+
+
       #####################################
       # 2 HL V  heatmap
       # top N based on paired HL v count but only label the heavy V because, same heavy v has different light v pairs
       #####################################
-      
+
       # Lable top HL paired vj
-      
+
       # topN based on heavy and light paired  V genes
       row_vH <- rownames_to_column(v_h)
       head(row_vH)
-      
+
       # combine heavy vj row order to the bcr data
       order_bcr_HL_v<- inner_join(x=row_vH, y=bcr_HL_V_sel, by=c("Var1"="v_call_heavy"))
       head(order_bcr_HL_v)
-      
+
       # extract top n paired heavy and light v
       v_HL<- as.data.frame(table(bcr_HL_V_sel$HL_v))
       topN_hl_v <- rownames_to_column(v_HL) %>% arrange(desc(Freq)) %>%top_n(20,v_HL$Freq)
-      
+
       # extract the row number and corresponding heavy vj genes
       topN_hl_v_order<- order_bcr_HL_v %>% filter(HL_v%in%topN_hl_v$Var1)  %>%
         select(rowname,Var1)  %>% unique()
       topN_hl_v_order
-      
+
       # extract the row number
       topN_nb_hl_v_order<- as.numeric(topN_hl_v_order$rowname)
       topN_nb_hl_v_order
-      
-      
+
+
       # project to heavy vj data for corresponding row number
-      
+
       HL_v_r_ha = rowAnnotation(
         H_Vc = anno_barplot(v_h$Freq),foo = anno_mark(at = topN_nb_hl_v_order, labels = topN_hl_v_order$Var1), annotation_name_rot = 0)
       lgd = list(title = "Freq", col_fun = col_fun ,labels_gp = gpar(fontsize=14))
-      
-      
+
+
       # plot
       ph2<- Heatmap(data_subset_norm_v, column_title = paste0(i," HL V gene usage \n topN paired HL V genes"),
                     name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                     top_annotation = v_c_ha, right_annotation =HL_v_r_ha,
                     row_names_side = "left",heatmap_legend_param = lgd,
-                    width = ncol(data_subset_norm_v)*unit(3, "mm"), 
+                    width = ncol(data_subset_norm_v)*unit(3, "mm"),
                     height = nrow(data_subset_norm_v)*unit(3, "mm")) # turn off row clustering
-      
+
       draw(ph2)
-      
+
       col_fun2a = colorRamp2(c(0, max(v_h$Freq)/500, max(v_h$Freq)/4), c(  "white", "orange","red"))
       ph2a<- Heatmap(freq_v, column_title = paste0(i," HL V gene usage"),
                      name = i, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun2a,
                      row_names_gp = gpar(fontsize = 16),column_names_gp = gpar(fontsize = 16),
                      top_annotation = v_c_ha, right_annotation =v_r_ha1,
                      row_names_side = "left",heatmap_legend_param =lgd,
-                     width = ncol(freq_v)*unit(3, "mm"), 
+                     width = ncol(freq_v)*unit(3, "mm"),
                      height = nrow(freq_v)*unit(3, "mm")) # turn off row clustering
-      
+
       draw(ph2a)
-      
+
       #-------------------------------------------------------------------------
       dev.off()
-      
-      
+
+
     }
-    
+
   }
   summary<- do.call(rbind.data.frame,final)
   return(summary)
@@ -1171,22 +1173,25 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type
 
 
 #==============================================================================#
-#  function: heatmap_VJH
+#  function: biased_VHL
+# Heatmap plot for the H and L v gene usage
+# df_fileList: file list ; df_bcrInputPath: lv1_corrected BCR; rdsInputPath: QCed sc data
+# type: "heavy"/"light"/"HL"
 #==============================================================================#
 
 
-heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outputSummary,type){
+biased_VHL <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outputSummary,type){
   final<- list()
   for(i in df_fileList){
-    
+
     # Read GEX data
     gex_db <- readRDS(paste0(rdsInputPath,i,".rds"))
-    
+
     if(type=="heavy"){
       # Read BCR data
       bcr_db <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectHeavyBcr.tsv"))
       ## Standardize cell IDs
-      
+
       if(i=="p36T1"){
         sample_id<-"p36_T1"
         sample_NC<-"p36D4"
@@ -1208,52 +1213,52 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       }else {
         print("now only support p36&HD time points")
       }
-      
+
       bcr_db$sample<- sample_id
       bcr_db$sampleNC<- sample_NC
-      
-      # Make cell IDs in BCR match those in Seurat Object   
-      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)   
-      
-      # NOTE: cell_id becomes the cluster_cb after lv1 correction  
+
+      # Make cell IDs in BCR match those in Seurat Object
+      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)
+
+      # NOTE: cell_id becomes the cluster_cb after lv1 correction
       bcr_db$cell_id_unique = paste0(bcr_db$sample, "_", bcr_db$cell_id)
       bcr_db$cluster_cb_unique = paste0(bcr_db$sample, "_", bcr_db$cluster_cb)
-      
-      bcr_db$cell_id_unique[1:4]   
-      
+
+      bcr_db$cell_id_unique[1:4]
+
       # subset heavy bcr for match to have unique cell_id(because paired light chain will have the same cell_id)
       # Note: lv1 correction already select the heavy chain
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
-      
+
       #####################
       # matching without lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index = match(Cells(gex_db), bcr_db$cell_id_unique)
-      
+
       #####################
       # matching after lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv1 = match(Cells(gex_db), bcr_db$cluster_cb_unique)
-      
-      
+
+
       # In this data, not all cells are B cells.
       # What proportion of cells don’t have BCRs?
       scWithOutMatchedBcr<- NULL
       scWithOutMatchedBcr$scMissBcr <- mean(!is.na(match.index))
       scWithOutMatchedBcr$scMissBcr_lv1 <- mean(!is.na(match.index_lv1))
       scWithOutMatchedBcr$id <-i
-      
+
       final[[i]]<- scWithOutMatchedBcr
-      
-      
+
+
       #------------------------------------------------------------------------
       ### Find the BCR cells in the GEX data
-      
+
       # Match indices to find the position of the BCR cells in the GEX data
       # Different from finding the position of the GEX cells in the BCR data!
-      
+
       match.index = match(bcr_db$cluster_cb_unique, Cells(gex_db))
       # What proportion of BCRs don’t have GEX information?
       mean(is.na(match.index))
@@ -1263,7 +1268,7 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
       bcr_db$gex_annotation= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
       bcr_db$gex_annotation[1:5]
-      
+
       # Add UMAP coordinates to BCR data
       #umap1 = gex_db@reductions$umap@cell.embeddings[,1]
       #umap2 = gex_db@reductions$umap@cell.embeddings[,2]
@@ -1271,9 +1276,9 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       #bcr_db$gex_umap2= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap2[x])}))
       bcr_db[1:5,] %>%
         select(cell_id,gex_annotation)
-      
-      
-      
+
+
+
       ### Remove cells without GEX data
       # Remove cells that didn’t match
       bcr_db = filter(bcr_db, !is.na(gex_annotation))
@@ -1283,28 +1288,28 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       bcr_hm$v_call <- sapply(str_split(bcr_hm$v_call, pattern = ","),"[",1)
       bcr_hm$j_call <- sapply(str_split(bcr_hm$j_call, pattern = ","),"[",1)
       head(bcr_hm)
-      
+
       bcr_hm1<- bcr_hm
       # further remove the * after to reduce the V diversity
       bcr_hm1$v_call <- sapply(str_split(bcr_hm$v_call, pattern = "\\*"),"[",1)
       bcr_hm1$j_call <- sapply(str_split(bcr_hm$j_call, pattern = "\\*"),"[",1)
       bcr_hm1 <- bcr_hm1 %>% mutate(vj=paste0(v_call,"_", j_call))
       head(bcr_hm1)
-      
+
       #----------
       # https://www.quora.com/How-do-I-get-a-frequency-count-based-on-two-columns-variables-in-an-R-dataframe
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
       freq <- table(bcr_hm1$v_call,bcr_hm1$j_call)
       freq
-      
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){
         (x - mean(x)) / sd(x)
       }
-      
+
       data_subset_norm <- t(apply(freq, 1, cal_z_score))
       data_subset_norm
-      
+
       #################
       # prepare row and column annotation bar plot
       #################
@@ -1312,48 +1317,48 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       v_h<-as.data.frame(table(bcr_hm1$v_call))
       j_h<-as.data.frame(table(bcr_hm1$j_call))
       # topN for labeling
-      
+
       # topN < group_by(vj) %>% summarise(n=n()) %>%  arrange(desc(n)) %>%  top_n()
       topN <- rownames_to_column(v_h) %>% arrange(desc(Freq)) %>%top_n(10,v_h$Freq)
       topN_nb<- as.numeric(topN$rowname)
-      
-      
+
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         V_count = anno_barplot(v_h$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 270)
-      
+
       v_c_ha = HeatmapAnnotation(J_count = anno_barplot(j_h$Freq),which = "col")
-      
-      
-      
+
+
+
       #-------------------------------------------------------------------------
       # heatmap
       pdf(file=paste0(outputPlot,sample_NC,"_lv1_heavy_vj_usageHeatmap.pdf"))
-      
+
       #pheatmap(data_subset_norm)
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
       col_fun = colorRamp2(c(-3, 0, 5), c("green", "white", "red"))
       lgd = list(title = "Freq", col_fun = col_fun)
-      
+
       ph1<- Heatmap(data_subset_norm, column_title = paste0(sample_NC," heavy VJ gene usage"),
                     name = sample_NC, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 10),column_names_gp = gpar(fontsize = 8),
                     top_annotation = v_c_ha, right_annotation =v_r_ha,
                     row_names_side = "left",heatmap_legend_param =lgd) # turn off row clustering
-      
+
       draw(ph1)
-      
+
       #-------------------------------------------------------------------------
-      
+
       dev.off()
-      
-      
+
+
     }else if(type=="light"){
       # Read BCR data
       bcr_db <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectLightBcr.tsv"))
       ## Standardize cell IDs
-      
+
       if(i=="p36T1"){
         sample_id<-"p36_T1"
         sample_NC<-"p36D4"
@@ -1375,51 +1380,51 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       }else {
         print("now only support p36&HD time points")
       }
-      
+
       bcr_db$sample<- sample_id
       bcr_db$sampleNC<- sample_NC
-      # Make cell IDs in BCR match those in Seurat Object   
-      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)   
-      
-      # NOTE: cell_id becomes the cluster_cb after lv1 correction  
+      # Make cell IDs in BCR match those in Seurat Object
+      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)
+
+      # NOTE: cell_id becomes the cluster_cb after lv1 correction
       bcr_db$cell_id_unique = paste0(bcr_db$sample, "_", bcr_db$cell_id)
       bcr_db$cluster_cb_unique = paste0(bcr_db$sample, "_", bcr_db$cluster_cb)
-      
-      bcr_db$cell_id_unique[1:4]   
-      
+
+      bcr_db$cell_id_unique[1:4]
+
       # subset heavy bcr for match to have unique cell_id(because paired light chain will have the same cell_id)
       # Note: lv1 correction already select the heavy chain
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
-      
+
       #####################
       # matching without lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index = match(Cells(gex_db), bcr_db$cell_id_unique)
-      
+
       #####################
       # matching after lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv1 = match(Cells(gex_db), bcr_db$cluster_cb_unique)
-      
-      
+
+
       # In this data, not all cells are B cells.
       # What proportion of cells don’t have BCRs?
       scWithOutMatchedBcr<- NULL
       scWithOutMatchedBcr$scMissBcr <- mean(!is.na(match.index))
       scWithOutMatchedBcr$scMissBcr_lv1 <- mean(!is.na(match.index_lv1))
       scWithOutMatchedBcr$id <-i
-      
+
       final[[i]]<- scWithOutMatchedBcr
-      
-      
+
+
       #------------------------------------------------------------------------
       ### Find the BCR cells in the GEX data
-      
+
       # Match indices to find the position of the BCR cells in the GEX data
       # Different from finding the position of the GEX cells in the BCR data!
-      
+
       match.index = match(bcr_db$cluster_cb_unique, Cells(gex_db))
       # What proportion of BCRs don’t have GEX information?
       mean(is.na(match.index))
@@ -1429,7 +1434,7 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
       bcr_db$gex_annotation= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
       bcr_db$gex_annotation[1:5]
-      
+
       # Add UMAP coordinates to BCR data
       #umap1 = gex_db@reductions$umap@cell.embeddings[,1]
       #umap2 = gex_db@reductions$umap@cell.embeddings[,2]
@@ -1437,14 +1442,14 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       #bcr_db$gex_umap2= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap2[x])}))
       bcr_db[1:5,] %>%
         select(cell_id,gex_annotation)
-      
-      
-      
+
+
+
       ### Remove cells without GEX data
       # Remove cells that didn’t match
       bcr_db = filter(bcr_db, !is.na(gex_annotation))
-      
-      
+
+
       ################################################################
       # UMAP cluster labeling need to be customized for individual sample
       # !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1453,44 +1458,44 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       col_anno = c("Exhausted B cells"="dodgerblue2", "Naive B cells"="firebrick2", "Non-switched memory B cells"="seagreen","Plasmablasts"="darkgoldenrod2", "Switched memory B cells"="black")
       # Plot UMAP from bcr_db
       #pdf(paste0(outputPlot,i, "umap_from_bcr_db.pdf"))
-      
+
       #bcr_umap <- ggplot(bcr_db) +geom_point(aes(x = gex_umap1, y = gex_umap2, color = gex_annotation)) +scale_colour_manual(values=col_anno) +theme_bw()
-      
+
       #print(bcr_umap)
       #dev.off()
       #----------------------------------------------------------------------
-      
+
       # bcr_dbH <-bcr_db[grep("IGH",bcr_db$v_call,invert = F),] # It's already Heavy chain after lv1 correction
-      
-      
+
+
       bcr_hm <- bcr_db  %>% select(sequence_id,v_call,j_call,gex_annotation)
       # only use the 1st v gene hit
       bcr_hm$v_call <- sapply(str_split(bcr_hm$v_call, pattern = ","),"[",1)
       bcr_hm$j_call <- sapply(str_split(bcr_hm$j_call, pattern = ","),"[",1)
       head(bcr_hm)
-      
+
       bcr_hm1<- bcr_hm
       # further remove the * after to reduce the V diversity
       bcr_hm1$v_call <- sapply(str_split(bcr_hm$v_call, pattern = "\\*"),"[",1)
       bcr_hm1$j_call <- sapply(str_split(bcr_hm$j_call, pattern = "\\*"),"[",1)
       bcr_hm1 <- bcr_hm1 %>% mutate(vj=paste0(v_call,"_", j_call))
       head(bcr_hm1)
-      
-      
+
+
       #----------
       # https://www.quora.com/How-do-I-get-a-frequency-count-based-on-two-columns-variables-in-an-R-dataframe
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
       freq <- table(bcr_hm1$v_call,bcr_hm1$j_call)
       freq
-      
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){
         (x - mean(x)) / sd(x)
       }
-      
+
       data_subset_norm <- t(apply(freq, 1, cal_z_score))
       data_subset_norm
-      
+
       #################
       # prepare row and column annotation bar plot
       #################
@@ -1499,52 +1504,52 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       j_l<-as.data.frame(table(bcr_hm1$j_call))
       head(v_l)
       # topN for labeling
-      
+
       # topN < group_by(vj) %>% summarise(n=n()) %>%  arrange(desc(n)) %>%  top_n()
       topN <- rownames_to_column(v_l) %>% arrange(desc(Freq)) %>%top_n(10,v_l$Freq)
       topN_nb<- as.numeric(topN$rowname)
       head(topN_nb)
-      
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         V_count = anno_barplot(v_l$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 270)
-      
+
       v_c_ha = HeatmapAnnotation(J_count = anno_barplot(j_l$Freq),which = "col")
-      
+
       # heatmap
       pdf(file=paste0(outputPlot,sample_NC,"_lv1_light_vj_usageHeatmap.pdf"))
       #-------------------------------------------------------------------------
-      
+
       #pheatmap(data_subset_norm)
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
       col_fun = colorRamp2(c(-3, 0, 5), c("green", "white", "red"))
       lgd = list(title = "Freq", col_fun = col_fun)
-      
+
       ph1<- Heatmap(data_subset_norm, column_title = paste0(sample_NC," light VJ gene usage"),
                     name = sample_NC, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 10),column_names_gp = gpar(fontsize = 8),
                     top_annotation = v_c_ha, right_annotation =v_r_ha,
                     row_names_side = "left",
                     heatmap_legend_param = lgd) # turn off row clustering
-      
+
       draw(ph1)
-      
+
       #-------------------------------------------------------------------------
-      
+
       dev.off()
-      
+
     }else if(type=="HL"){
-      
+
       #########################################################################
       # type="HL"
       #########################################################################
-      
+
       # Read BCR data
       bcr_dbH <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectHeavyBcr.tsv"))
       bcr_dbL <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectLightBcr.tsv"))
       ## Standardize cell IDs
-      
+
       if(i=="p36T1"){
         sample_id<-"p36_T1"
         sample_NC<-"p36D4"
@@ -1566,43 +1571,43 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       }else {
         print("now only support p36&HD time points")
       }
-      
+
       bcr_dbH$sampleNC<- sample_NC
       bcr_dbL$sampleNC<- sample_NC
-      
+
       bcr_dbH$sample<- sample_id
       bcr_dbL$sample<- sample_id
       dim(bcr_dbH)
       dim(bcr_dbL)
-      
-      # Make cell IDs in BCR match those in Seurat Object   
-      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)   
-      
-      # NOTE: cell_id becomes the cluster_cb after lv1 correction  
+
+      # Make cell IDs in BCR match those in Seurat Object
+      # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)
+
+      # NOTE: cell_id becomes the cluster_cb after lv1 correction
       bcr_dbH$cell_id_unique = paste0(bcr_dbH$sample, "_", bcr_dbH$cell_id)
       bcr_dbH$cluster_cb_unique = paste0(bcr_dbH$sample, "_", bcr_dbH$cluster_cb)
-      
+
       bcr_dbL$cell_id_unique = paste0(bcr_dbL$sample, "_", bcr_dbL$cell_id)
       bcr_dbL$cluster_cb_unique = paste0(bcr_dbL$sample, "_", bcr_dbL$cluster_cb)
-      bcr_dbL$cell_id_unique[1:4]   
-      
+      bcr_dbL$cell_id_unique[1:4]
+
       # subset heavy bcr for match to have unique cell_id(because paired light chain will have the same cell_id)
       # Note: lv1 correction already select the heavy chain
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
-      
+
       #####################
       # matching without lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.indexH = match(Cells(gex_db), bcr_dbH$cell_id_unique)
-      
+
       #####################
       # matching after lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv1H = match(Cells(gex_db), bcr_dbH$cluster_cb_unique)
-      
-      
+
+
       # In this data, not all cells are B cells.
       # What proportion of cells don’t have BCRs?
       scWithOutMatchedBcrH<- NULL
@@ -1610,16 +1615,16 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       scWithOutMatchedBcrH$scMatchBcr_lv1 <- mean(!is.na(match.index_lv1H))
       scWithOutMatchedBcrH$id <-i
       scWithOutMatchedBcrH
-      
+
       final[[i]]<- scWithOutMatchedBcrH
-      
-      
+
+
       #------------------------------------------------------------------------
       ### Find the BCR cells in the GEX data
-      
+
       # Match indices to find the position of the BCR cells in the GEX data
       # Different from finding the position of the GEX cells in the BCR data!
-      
+
       match.indexH = match(bcr_dbH$cluster_cb_unique, Cells(gex_db))
       # What proportion of BCRs don’t have GEX information?
       mean(is.na(match.indexH))
@@ -1629,7 +1634,7 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
       bcr_dbH$gex_annotation= unlist(lapply(match.indexH,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
       bcr_dbH$gex_annotation[1:5]
-      
+
       # Add UMAP coordinates to BCR data
       #umap1 = gex_db@reductions$umap@cell.embeddings[,1]
       #umap2 = gex_db@reductions$umap@cell.embeddings[,2]
@@ -1637,14 +1642,14 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       #bcr_db$gex_umap2= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap2[x])}))
       bcr_dbH[1:5,] %>%
         select(cell_id_unique,gex_annotation)
-      
-      
-      
+
+
+
       ### Remove cells without GEX data
       # Remove cells that didn’t match
       bcr_dbH = filter(bcr_dbH, !is.na(gex_annotation))
-      
-      
+
+
       ################################################################
       # UMAP cluster labeling need to be customized for individual sample
       # !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1653,9 +1658,9 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       col_anno = c("Exhausted B cells"="dodgerblue2", "Naive B cells"="firebrick2", "Non-switched memory B cells"="seagreen","Plasmablasts"="darkgoldenrod2", "Switched memory B cells"="black")
       # Plot UMAP from bcr_db
       #pdf(paste0(outputPlot,i, "umap_from_bcr_db.pdf"))
-      
+
       #bcr_umap <- ggplot(bcr_db) +geom_point(aes(x = gex_umap1, y = gex_umap2, color = gex_annotation)) +scale_colour_manual(values=col_anno) +theme_bw()
-      
+
       #print(bcr_umap)
       #dev.off()
       #----------------------------------------------------------------------
@@ -1664,48 +1669,48 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       bcr_dbH$v_call <- sapply(str_split(bcr_dbH$v_call, pattern = ","),"[",1)
       bcr_dbH$j_call <- sapply(str_split(bcr_dbH$j_call, pattern = ","),"[",1)
       head(bcr_dbH[1:4])
-      
+
       bcr_dbH1<- bcr_dbH
       # further remove the * after to reduce the V diversity
       bcr_dbH1$v_call <- sapply(str_split(bcr_dbH$v_call, pattern = "\\*"),"[",1)
       bcr_dbH1$j_call <- sapply(str_split(bcr_dbH$j_call, pattern = "\\*"),"[",1)
-      
+
       head(bcr_dbH1)
       # Format the V J gene usage for light
       # only use the 1st v gene hit
       bcr_dbL$v_call <- sapply(str_split(bcr_dbL$v_call, pattern = ","),"[",1)
       bcr_dbL$j_call <- sapply(str_split(bcr_dbL$j_call, pattern = ","),"[",1)
       head(bcr_dbL)
-      
+
       bcr_dbL1<- bcr_dbL
       # further remove the * after to reduce the V diversity
       bcr_dbL1$v_call <- sapply(str_split(bcr_dbL$v_call, pattern = "\\*"),"[",1)
       bcr_dbL1$j_call <- sapply(str_split(bcr_dbL$j_call, pattern = "\\*"),"[",1)
-      
+
       head(bcr_dbL1)
-      
+
       # combine H L BCR
       bcr_dbH_sel <- bcr_dbH1 %>%
         select(sequence_id,v_call,j_call,gex_annotation,cluster_cb_unique) %>%
         mutate(vj=paste0(v_call,"_",j_call))
-      
+
       bcr_dbL_sel <- bcr_dbL1 %>% select(sequence_id,v_call,j_call,cluster_cb_unique)%>%
         mutate(vj=paste0(v_call,"_",j_call))
-      
+
       bcr_HL <- inner_join(x=bcr_dbH_sel,y=bcr_dbL_sel,
                            by=c("cluster_cb_unique"),suffix = c("_heavy","_light"))
       # save the integrated BCR data and ready for plotting based on this data
       write_tsv(x=bcr_HL, file = paste0(outputSummary,sample_NC,"_iBcr.tsv"))
-      
+
       #########################################################################
       # part-1. HL VJ  heatmap
       #########################################################################
-      
+
       bcr_HL_sel<- bcr_HL %>% select(vj_heavy, vj_light,gex_annotation) %>% mutate(HL_vj=paste0(vj_heavy,"_",vj_light))
-      
+
       dim(bcr_HL_sel)
-      
-      
+
+
       #####################################
       # 1. HL VJ  heatmap
       # top N based on pure heavy vj count
@@ -1714,15 +1719,15 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
       freq <- table(bcr_HL_sel$vj_heavy,bcr_HL_sel$vj_light)
       head(freq)
-      
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){
         (x - mean(x)) / sd(x)
       }
-      
+
       data_subset_norm <- t(apply(freq, 1, cal_z_score))
       data_subset_norm
-      
+
       #################
       # prepare row and column annotation bar plot
       #################
@@ -1731,12 +1736,12 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       vj_L<-as.data.frame(table(bcr_HL_sel$vj_light))
       vj_HL<- as.data.frame(table(bcr_HL_sel$HL_vj))
       # topN for labeling
-      
+
       # topN based on heavy chain vj
       topN <- rownames_to_column(vj_H) %>% arrange(desc(Freq)) %>%top_n(10,vj_H$Freq)
       topN_nb<- as.numeric(topN$rowname)
-      
-      
+
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         H_vj_count = anno_barplot(vj_H$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 270)
@@ -1744,53 +1749,53 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       #-------------------------------------------------------------------------
       # heatmap
       pdf(file=paste0(outputPlot,sample_NC,"_lv1_HL_vj_usageHeatmap.pdf"))
-      
+
       #pheatmap(data_subset_norm)
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
       col_fun = colorRamp2(c(-3, 0, 5), c("green", "white", "red"))
       lgd = list(title = "Freq", col_fun = col_fun)
-      
+
       ph1<- Heatmap(data_subset_norm, column_title = paste0(sample_NC," heavy VJ vs light VJ gene usage"),
                     name = sample_NC, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 10),column_names_gp = gpar(fontsize = 8),
                     top_annotation = v_c_ha, right_annotation =v_r_ha,
                     row_names_side = "left", heatmap_legend_param = lgd,
                     show_column_names = FALSE, show_row_names = FALSE) # turn off row clustering
-      
+
       draw(ph1)
-      
-      
+
+
       #####################################
       # 2. HL VJ  heatmap
       # top N based on paired HL vj count but only label the heavy VJ because, same heavy vj has different light vj
       #####################################
-      
+
       # topN based on heavy and light paired  vj
       row_vjH <- rownames_to_column(vj_H)
-      
+
       # combine heavy vj row order to the bcr data
       order_bcr_HL_sel<- inner_join(x=row_vjH, y=bcr_HL_sel, by=c("Var1"="vj_heavy"))
       head(order_bcr_HL_sel)
-      
+
       # extract top n paired heavy and light vj
       topN_hl <- rownames_to_column(vj_HL) %>% arrange(desc(Freq)) %>%top_n(20,vj_HL$Freq)
-      
+
       # extract the row number and corresponding heavy vj genes
       topN_hl_order<- order_bcr_HL_sel %>% filter(HL_vj%in%topN_hl$Var1)  %>%
         select(rowname,Var1)  %>% unique()
       topN_hl_order
-      
+
       # extract the row number
       topN_nb_hl_order<- as.numeric(topN_hl_order$rowname)
       topN_nb_hl_order
-      
-      
+
+
       # project to heavy vj data for corresponding row number
       HL_vj_r_ha = rowAnnotation(
         H_vj_count = anno_barplot(vj_H$Freq),foo = anno_mark(at = topN_nb_hl_order, labels = topN_hl_order$Var1))
       lgd = list(title = "Freq", col_fun = col_fun)
-      
+
       # plot
       ph2<- Heatmap(data_subset_norm, column_title = paste0(sample_NC," heavy VJ vs light VJ gene usage \n topN paired VJ genes"),
                     name = sample_NC, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
@@ -1798,39 +1803,39 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
                     top_annotation = v_c_ha, right_annotation =HL_vj_r_ha,
                     row_names_side = "left", heatmap_legend_param = lgd,
                     show_column_names = FALSE, show_row_names = FALSE) # turn off row clustering
-      
+
       draw(ph2)
       dev.off()
-      
-      
+
+
       #########################################################################
       # Part-2: heavy and light v gene heatmap
       #########################################################################
       bcr_HL_V_sel<- bcr_HL %>% select(v_call_heavy, v_call_light,gex_annotation)  %>%
         mutate(HL_v=paste0(v_call_heavy,"_",v_call_light))
-      
+
       head(bcr_HL_V_sel)
-      
-      
+
+
       # https://www.quora.com/How-do-I-get-a-frequency-count-based-on-two-columns-variables-in-an-R-dataframe
       # https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/
       freq_v <- table(bcr_HL_V_sel$v_call_heavy, bcr_HL_V_sel$v_call_light)
       freq_v
-      
+
       # scale the row or column before the heatmap ploting
       cal_z_score <- function(x){
         (x - mean(x)) / sd(x)
       }
-      
+
       data_subset_norm_v <- t(apply(freq_v, 1, cal_z_score))
       data_subset_norm_v
-      
-      
+
+
       #####################################
       # 1 HL V  heatmap
       # top N based on paired HL vj count but only label the heavy VJ because, same heavy vj has different light vj
       #####################################
-      
+
       # use complex heat map to remove the cluster of row and column
       # Turn off the clustering fucntion
       col_fun = colorRamp2(c(-3, 0, 5), c("green", "white", "red"))
@@ -1841,91 +1846,90 @@ heatmap_VJH <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outp
       v_h<-as.data.frame(table(bcr_HL_V_sel$v_call_heavy))
       v_l<-as.data.frame(table(bcr_HL_V_sel$v_call_light))
       # topN for labeling
-      
+
       # topN < group_by(vj) %>% summarise(n=n()) %>%  arrange(desc(n)) %>%  top_n()
       topN <- rownames_to_column(v_h) %>% arrange(desc(Freq)) %>%top_n(10,v_h$Freq)
       topN_nb<- as.numeric(topN$rowname)
       topN_nb
-      
+
       # barplot annotation
       v_r_ha = rowAnnotation(
         H_V_count = anno_barplot(v_h$Freq),foo = anno_mark(at = topN_nb, labels = topN$Var1), annotation_name_rot = 270)
-      
+
       v_c_ha = HeatmapAnnotation(L_V_count = anno_barplot(v_l$Freq),which = "col")
       lgd = list(title = "Freq", col_fun = col_fun)
-      
-      
+
+
       ph1<- Heatmap(data_subset_norm_v, column_title = paste0(sample_NC," HL v gene usage"),
                     name = sample_NC, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 10),column_names_gp = gpar(fontsize = 8),
                     top_annotation = v_c_ha, right_annotation =v_r_ha,
                     row_names_side = "left", heatmap_legend_param = lgd) # turn off row clustering
       draw(ph1)
-      
+
       # save the plot for manuscript
       png(filename=paste0(outputPlot,sample_NC,"_lv1_HL_v_usageHeatmap.png"),width=20,height=20,units="cm",res=300)
       draw(ph1)
       dev.off()
       #----------------------------------------------------------------------
-      
+
       pdf(file=paste0(outputPlot,sample_NC,"_lv1_HL_v_usageHeatmap.pdf"))
-      
+
       draw(ph1)
-      
-      
+
+
       #####################################
       # 2 HL V  heatmap
       # top N based on paired HL v count but only label the heavy V because, same heavy v has different light v pairs
       #####################################
-      
+
       # Lable top HL paired vj
-      
+
       # topN based on heavy and light paired  V genes
       row_vH <- rownames_to_column(v_h)
       head(row_vH)
-      
+
       # combine heavy vj row order to the bcr data
       order_bcr_HL_v<- inner_join(x=row_vH, y=bcr_HL_V_sel, by=c("Var1"="v_call_heavy"))
       head(order_bcr_HL_v)
-      
+
       # extract top n paired heavy and light v
       v_HL<- as.data.frame(table(bcr_HL_V_sel$HL_v))
       topN_hl_v <- rownames_to_column(v_HL) %>% arrange(desc(Freq)) %>%top_n(20,v_HL$Freq)
-      
+
       # extract the row number and corresponding heavy vj genes
       topN_hl_v_order<- order_bcr_HL_v %>% filter(HL_v%in%topN_hl_v$Var1)  %>%
         select(rowname,Var1)  %>% unique()
       topN_hl_v_order
-      
+
       # extract the row number
       topN_nb_hl_v_order<- as.numeric(topN_hl_v_order$rowname)
       topN_nb_hl_v_order
-      
-      
+
+
       # project to heavy vj data for corresponding row number
-      
+
       HL_v_r_ha = rowAnnotation(
         v = anno_barplot(v_h$Freq),foo = anno_mark(at = topN_nb_hl_v_order, labels = topN_hl_v_order$Var1), annotation_name_rot = 270)
       lgd = list(title = "Freq", col_fun = col_fun)
-      
-      
+
+
       # plot
       ph2<- Heatmap(data_subset_norm_v, column_title = paste0(sample_NC," HL V gene usage \n topN paired HL V genes"),
                     name = sample_NC, cluster_rows = FALSE,cluster_columns = FALSE,col=col_fun,
                     row_names_gp = gpar(fontsize = 10),column_names_gp = gpar(fontsize = 8),
                     top_annotation = v_c_ha, right_annotation =HL_v_r_ha,
                     row_names_side = "left",heatmap_legend_param = lgd) # turn off row clustering
-      
+
       draw(ph2)
-      
+
       #-------------------------------------------------------------------------
       dev.off()
-      
-      
+
+
     }
-    
+
   }
   summary<- do.call(rbind.data.frame,final)
   return(summary)
 }
-
