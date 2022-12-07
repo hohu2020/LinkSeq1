@@ -1,0 +1,708 @@
+---
+title: "pip20_no7 BCR network"
+author: "HX"
+date: "16/May/2022"
+output: html_document
+---
+
+# title:  prepare unassigned heavy  chain cb for levenshtein distance calculation
+# reference: https://www.biorxiv.org/content/10.1101/2022.03.01.482462v1.full
+
+## INPUT DATA 
+   - sc data from dropseqpipe 
+   - BCR from TRUST4 output
+   - lv1 corrected BCR use cluster_cb(unique) as new ID 
+
+## Part-1.  
+     -  clone network based at single B cell level(used for fig)
+     -  heavy CDR3aa with same v,j , same cdr3aa length and >80% similarity are connected   
+
+## Part-2.  
+     -  clone network based at single B cell level(to be done)
+     -  same light v/j gene 
+     - & same heavy v/j , same cdr3aa length and >80% similarity are connected  
+
+
+# DATE 16/May, 2022
+
+
+# load library
+
+```{r}
+suppressPackageStartupMessages({
+
+  library(ggplot2)
+  #library(patchwork)
+  library(tidyverse)
+  library(Seurat)
+  library(RecordLinkage)
+  library(igraph)
+  library(RColorBrewer)
+  #source("/home/hohu/BcrSeqSnakemake/scripts/r/scRepterviorExtention.R")
+})
+```
+
+
+
+
+
+# part-1: network analysis at single B cell level 
+ - vertices are based on single b cells cluster_cb(lv2 ID), edges are calculated based on cdr3aa similarity
+ - GOOD (used for fig)
+ 
+
+#-------------------------------
+
+fileList<- c("p36T1","p36T2","p36T4","HD2B1500","HD2B3600","HD2B960","p45T2")
+
+df_fileList=fileList
+df_bcrInputPath=file_pathBcr
+rdsInputPath=file_pathGex
+outputPath=ouput_path_plot 
+i="p36T1"
+#-------------------------------
+
+
+```{r}
+
+clone_network <-function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath){
+  final<- list()
+  for(i in  df_fileList ){
+    # Read BCR data
+    
+    bcr_db <- read_tsv(paste0(df_bcrInputPath,i,"_lv1CorrectHeavyBcr.tsv"))
+    
+    # Read GEX data
+    gex_db <- readRDS(paste0(rdsInputPath,i,".rds"))
+    
+    
+    ## Standardize cell IDs
+    
+    if(i=="p36T1"){
+      sample_id<-"p36_T1"
+      dpi<- 1
+      
+    }else if(i=="p36T2"){
+      sample_id<-"p36_T2"
+      dpi<- 42
+    }else if(i=="p36T3"){
+      sample_id<-"p36_T3"
+      dpi<-89
+    }else if(i=="p36T4"){
+      sample_id<-"p36_T4"
+      dpi<-166
+    }else if(i=="p45T2"){
+      sample_id<-"p45_T2"
+      dpi<-16
+    }else if(i=="HD2B1500"){
+      sample_id<-"HD2B1500"
+      dpi<-0
+    }else if(i=="HD2B3600"){
+      sample_id<-"HD2B3600"
+      dpi<-0
+    }else if(i=="HD2B960"){
+      sample_id<-"HD2B960"
+      dpi<-0
+    }else {
+      print("now only support p36 time points")
+    }
+    
+    bcr_db$sample<- sample_id
+    bcr_db$day<- dpi
+    
+    ## Standardize cell IDs
+    
+    # Make cell IDs in BCR match those in Seurat Object   
+    # bcr_db$cell_id_unique = paste0(bcr_db$sample, "_", bcr_db$cell_id)
+    
+    
+    # bcr_db$cell_id = sapply(strsplit(bcr_db$sequence_id,"_"), "[",1)   
+    
+    # NOTE: cell_id becomes the cluster_cb after lv2 correction  
+    bcr_db$cell_id_unique = paste0(bcr_db$sample, "_", bcr_db$cell_id)
+    bcr_db$cluster_cb_unique = paste0(bcr_db$sample, "_", bcr_db$cluster_cb)
+    
+    bcr_db$cell_id_unique[1:4]   
+    
+    # subset heavy bcr for match to have unique cell_id
+    # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
+    
+    
+    # match index to find the position of the GEX cells in the BCR data
+    match.index = match(Cells(gex_db), bcr_db$cluster_cb_unique)
+    
+    
+    # In this data, not all cells are B cells.
+    # What proportion of cells don’t have BCRs?
+    mean(is.na(match.index))
+    
+    
+    
+    # Just to double check cell ids in the GEX match cells ids in BCR data
+    # Should be 1
+    mean(Cells(gex_db) == bcr_db$cluster_cb_unique[match.index],na.rm=TRUE)
+    ### Label GEX data with BCR data availability
+    
+    # label whether BCR found in cell
+    gex_db$contains_bcr = !is.na(match.index)
+    
+    ### plot UMAP
+    
+    
+    # List of cells with BCRs
+    #highlighted.cells = Cells(gex_db)[which(gex_db$contains_bcr)]
+    
+    # Plot UMAP with BCR-containing cells
+    #pdf(paste0(outputPath,i, "_umap.pdf"))
+    
+    #p<- DimPlot(object = gex_db, reduction = "umap", cells.highlight = highlighted.cells, label =TRUE, cols="gray", pt.size = 1.0, label.size=8, label.box=TRUE) + NoLegend()
+    #print(p)
+    #dev.off()
+    
+    ###########################################################################
+    ## Add GEX data to BCR object
+    ###########################################################################
+    
+    
+    ### Find the BCR cells in the GEX data
+    
+    # Match indices to find the position of the BCR cells in the GEX data
+    # Different from finding the position of the GEX cells in the BCR data!
+    
+    match.index = match(bcr_db$cluster_cb_unique, Cells(gex_db))
+    
+    
+    
+    # What proportion of BCRs don’t have GEX information?
+    mean(is.na(match.index))
+    mean(!is.na(match.index))
+    
+    
+    
+    
+    ### Transfer GEX annotations into the BCR data
+    
+    
+    # Add annotations to BCR data
+    cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
+    bcr_db$gex_annotation= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
+    bcr_db$gex_annotation[1:5]
+    
+    # Add UMAP coordinates to BCR data
+    #umap1 = gex_db@reductions$umap@cell.embeddings[,1]
+    #umap2 = gex_db@reductions$umap@cell.embeddings[,2]
+    #bcr_db$gex_umap1= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap1[x])}))
+    #bcr_db$gex_umap2= unlist(lapply(match.index, function(x){ifelse(is.na(x),NA, umap2[x])}))
+    bcr_db[1:5,] %>%
+      select(cell_id,gex_annotation)
+    
+    
+    
+    ### Remove cells without GEX data
+    
+    # Remove cells that didn’t match
+    bcr_db = filter(bcr_db, !is.na(gex_annotation))
+    
+    
+    ################################################################
+    # UMAP cluster labeling need to be customized for individual sample
+    # !!!!!!!!!!!!!!!!!!!!!!!!!
+    ################################################################
+    ### Ensure information transferred from Seurat object
+    
+    col_anno = c("Exhausted B cells"="dodgerblue2", "Naive B cells"="firebrick2",
+                 "Non-switched memory B cells"="darkolivegreen4","Plasmablasts"="darkgoldenrod2",
+                 "Switched memory B cells"="violet","Germline"="darkgrey")
+    
+    # Plot UMAP from bcr_db
+    #pdf(paste0(outputPath,i, "umap_from_bcr_db.pdf"))
+    
+    #bcr_umap <- ggplot(bcr_db) +geom_point(aes(x = gex_umap1, y = gex_umap2, color = gex_annotation)) +scale_colour_manual(values=col_anno) +theme_bw()
+    
+    #print(bcr_umap)
+    #dev.off()
+    
+    
+    ### Color the UMAP by isotype
+    # Plot isotype on UMAP
+    # p2<- ggplot(bcr_db) + geom_point(aes(x=gex_umap1,y = gex_umap2,color = isotype)) + theme_bw()
+    
+    # remove non b cells
+    bcr_db <- bcr_db[grep("B cell|Plasmablasts", bcr_db$gex_annotation,invert=F),]  
+    
+    dim(bcr_db)
+    # creat a new column vj_cdr3nt
+    bcr_db<-within(bcr_db, 
+                   vj_cdr3nt<-paste0(str_split(v_call,",",simplify = T)[,1],"_",str_split(j_call,",",simplify = T)[,1],"_",cdr3) )
+    
+    bcr_db<-within(bcr_db, 
+                   cdr3aa<-substr(junction_aa,2,nchar(junction_aa)-1) )
+    bcr_db<-within(bcr_db, 
+                   length_cdr3aa<-nchar(cdr3aa) )
+    bcr_db<-within(bcr_db, 
+                   vj_length_cdr3aa<-paste0(str_split(v_call,",",simplify = T)[,1],"_",str_split(j_call,",",simplify = T)[,1],"_",length_cdr3aa) )
+    
+    #######################################
+    ## collapse redundent bcr by gex_annotation and consensus count
+    #######################################
+    #---------------------------------------------------------------------------
+    # check the cell_id to multiple cluster_cb and select the one with b cell type assignment
+    test <- bcr_db %>%group_by(cluster_cb_unique) %>% summarise(n=n()) %>%
+      arrange(desc(n)) %>% filter(n>1)
+    dim(test)
+    test1<-bcr_db%>% filter(cluster_cb_unique %in%test$cluster_cb_unique)
+    dim(test1)
+    
+    data1 <- list()
+    uniq_id <- unique(test$cluster_cb_unique)
+    for(y in seq_len(length(uniq_id))){
+      id.y<- uniq_id[y]
+      location.y<- which(id.y==test1$cluster_cb_unique)
+      data.y<-test1[location.y,]
+      
+      test2 <- data.y[grep("B cell|Plasmablasts", test1$gex_annotation,invert=F),]  
+      test3 <-test2[ which.max(test2$consensus_count),]
+      data1[[y]]<- test3
+    }
+    collapsed_cell_id <- do.call(rbind,data1)
+    dim(collapsed_cell_id )
+    
+    # recombine the bcr
+    unique_cell_id_bcr <- bcr_db%>% filter(! cluster_cb_unique %in%test$cluster_cb_unique)
+    final_bcr <- rbind(unique_cell_id_bcr, collapsed_cell_id)
+    dim(final_bcr)
+    length(final_bcr$cluster_cb_unique)
+    ##########################
+    # 2nd version lv calculation
+    ##########################
+    
+    uniq_leng_cdr3 <- unique(final_bcr$vj_length_cdr3aa)
+    
+    
+    
+    final.y<-list()
+    for(y in seq_along(uniq_leng_cdr3) ){
+      # string cdr3 list for y
+      #y<-1
+      uniq_vj_leng_cdr3.y <- uniq_leng_cdr3[y]
+      bcr.y <-final_bcr[which(final_bcr$vj_length_cdr3aa==uniq_vj_leng_cdr3.y ) ,]
+      dim(bcr.y)
+      # extract uniq v,j,cdr3aa 
+      #bcr.y1<-  bcr.y %>%select(v_call,j_call,cdr3aa)%>% unique()
+      #dim(bcr.y1)
+      # cdr3aa stringVector used for lv calculation 
+      cdr_list.y <-bcr.y$cdr3aa
+      
+      # define the similarity threshold >= 80% cdr3aa 
+      #threshold.y<- unique(bcr.y$length_cdr3aa)*0.8
+      threshold.y <- 0.8
+      
+      #-------------------------------------------------------------------------------
+      # https://stackoverflow.com/questions/5721883/agrep-only-return-best-matches
+      # define the "closestMatch" function to calculate the distance and select the 
+      closestMatch= function(string,stringVector){
+        similarity = levenshteinSim(string, stringVector)
+        lv_match <- data.frame(stringVector,similarity)
+        
+        #  using "filter(similarity==max(similarity) )" to selet multipe max value
+        closest<-lv_match %>%
+          mutate(cdr3aa_1=string)%>% mutate(cdr3aa_2=stringVector)%>% 
+          select(cdr3aa_1,cdr3aa_2,similarity)
+      }
+      #-------------------------------------------------------------------------------
+      
+      final.z<-list()
+      for(z in seq_along(cdr_list.y)){
+        #z<- 1
+        cdr3aa.z <- cdr_list.y[z]
+        cdr_vect.z <- cdr_list.y[(z+1):length(cdr_list.y)]
+        # similarity=0.83333 is equal to lv=2 distance(2 mutation/insertion/deletion)
+        bcr_network <- closestMatch(string=cdr3aa.z, stringVector=cdr_vect.z)
+        #bcr_network$cdr3aa_string <- cdr3aa.z 
+        #bcr_network$cdr3aa_vec <- cdr_vect.z
+        bcr_network$cluster_cb_string <- bcr.y$cluster_cb_unique[z] 
+        bcr_network$cluster_cb_vec <- bcr.y$cluster_cb_unique[(z+1):length(cdr_list.y)] 
+        
+        lv.z<-bcr_network %>% filter(similarity>=0.8) %>%filter(cluster_cb_string!=cluster_cb_vec) 
+        
+        final.z[[z]]<- lv.z
+      }
+      final.z<- do.call(rbind,final.z)
+      final.y[[y]]<-final.z
+    }
+    final.y<-do.call(rbind,final.y)
+    #-------------------------------------
+  
+    
+      #-------------------------------------
+    # testing code
+    #testing code using small data set lv.z
+    #-------------------------------------
+    test_edge_cell<- final.y %>% select(cluster_cb_string,cluster_cb_vec)
+    dim(test_edge_cell)
+    length(test_edge_cell$cluster_cb_string)
+    length(test_edge_cell$cluster_cb_vec)
+    
+    
+    
+    test_df2<- as.data.frame(table(test_edge_cell)) %>% filter(Freq>0)
+    
+    dim(test_df2)
+    
+    uniq_cluster_cb<-final_bcr %>%select(cluster_cb_unique)%>%unique()
+    dim(uniq_cluster_cb)
+    
+   
+    
+    # if the vertices is less than 1000 use the default layout 
+    # else use the fore layout and remove some of the no connection vertices to 
+    # low the number of vertice bellow 1000 so default layout can be used 
+    
+    if(length(uniq_cluster_cb$cluster_cb_unique)<1000){
+      
+      g_test_all<- graph_from_data_frame(test_df2, directed = F , vertices =uniq_cluster_cb )
+      E(g_test_all)$weight <- E(g_test_all)$Freq
+      g_test_all
+      
+      g_test_all_deg<- igraph::degree(g_test_all,mode = c("All"))
+      V(g_test_all)$degree <- g_test_all_deg
+      which.max(g_test_all_deg)
+      
+      g_test_all_bw<-betweenness(g_test_all,directed = F)
+      V(g_test_all)$betweenness <- g_test_all_bw
+      V(g_test_all)$betweenness
+      which.max(g_test_all_bw)
+      
+      g_test_all_eig <- evcent(g_test_all)$vector
+      V(g_test_all)$Eigen <- g_test_all_eig
+      V(g_test_all)$Eigen
+      which.max(g_test_all_eig)
+      
+      # originalMar<- par("mar")
+      # https://stackoverflow.com/questions/23050928/error-in-plot-new-figure-margins-too-large-scatter-plot
+      
+      if(i=="p36T2"){
+        pdf(file = paste0(outputPath,i,"lv1_clone_network_allBcr.pdf"))
+        
+       par(mar=c(1,1,1,1))
+        set.seed(1001)
+        g1<-plot(g_test_all,edge.color='grey', vertex.label='',
+                 vertex.color="green",
+                 vertex.size=sqrt(g_test_all_deg)*2,
+                 layout=layout.fruchterman.reingold)
+        
+        set.seed(1001)
+        g2<-plot(g_test_all,edge.color='grey', vertex.label='',
+                 vertex.color="green",
+                 vertex.size=sqrt(g_test_all_deg)*2,
+                 layout=layout.fruchterman.reingold)
+        
+        set.seed(1001)
+        g3<- plot(g_test_all,edge.color="grey", vertex.label='',
+                  vertex.color="green",
+                  vertex.size=g_test_all_eig*10,
+                  layout=layout.fruchterman.reingold)
+        print(g1)
+        print(g2)
+        print(g3)
+        
+        dev.off()
+        
+      }else{
+        pdf(file = paste0(outputPath,i,"lv1_clone_network_allBcr.pdf"))
+        
+        set.seed(1001)
+        g1<-plot(g_test_all,edge.color='grey', vertex.label='',
+                 vertex.color="green",
+                 vertex.size=sqrt(g_test_all_deg)*2,
+                 layout=layout.fruchterman.reingold)
+        
+        set.seed(1001)
+        g2<-plot(g_test_all,edge.color='grey', vertex.label='',
+                 vertex.color="green",
+                 vertex.size=sqrt(g_test_all_deg)*2,
+                 layout=layout.fruchterman.reingold)
+        
+        set.seed(1001)
+        g3<- plot(g_test_all,edge.color="grey", vertex.label='',
+                  vertex.color="green",
+                  vertex.size=g_test_all_eig*10,
+                  layout=layout.fruchterman.reingold)
+        print(g1)
+        print(g2)
+        print(g3)
+        
+        dev.off()
+        
+      }
+     
+  
+      
+    }else {
+      #######################################
+      # option1:  use  layout.fruchterman.reingold 
+      # remove no edge vertices 
+      #######################################
+      # extract all vertices with edges
+      v_with_edge<- c(test_df2$cluster_cb_string,test_df2$cluster_cb_vec) %>% unique()
+      length(v_with_edge)
+      
+      # subset the vertices with edges infor to fit the layout.fruchterman.reingold
+      sub_uniq_cluster_cb<- uniq_cluster_cb %>% filter(cluster_cb_unique %in% v_with_edge)
+      dim(sub_uniq_cluster_cb)
+      
+      
+      # creat graph
+      g_test_all<- graph_from_data_frame(test_df2, directed = F , vertices =sub_uniq_cluster_cb )
+      E(g_test_all)$weight <- E(g_test_all)$Freq
+      g_test_all
+      
+      g_test_all_deg<- igraph::degree(g_test_all,mode = c("All"))
+      V(g_test_all)$degree <- g_test_all_deg
+      which.max(g_test_all_deg)
+      
+      g_test_all_bw<-betweenness(g_test_all,directed = F)
+      V(g_test_all)$betweenness <- g_test_all_bw
+      V(g_test_all)$betweenness
+      which.max(g_test_all_bw)
+      
+      g_test_all_eig <- evcent(g_test_all)$vector
+      V(g_test_all)$Eigen <- g_test_all_eig
+      V(g_test_all)$Eigen
+      which.max(g_test_all_eig)
+      set.seed(1001)
+      
+     
+      #pdf(file = paste0(outputPath,i,"lv1_clone_network_allBcr.pdf"))
+
+      set.seed(1001)
+      g1<-plot(g_test_all,edge.color='grey', vertex.label='',
+             vertex.color="green",
+             vertex.size=sqrt(g_test_all_deg)*2,
+             layout=layout.fruchterman.reingold)
+      
+      set.seed(1001)
+      g2<-plot(g_test_all,edge.color='grey', vertex.label='',
+             vertex.color="green",
+             vertex.size=sqrt(g_test_all_deg)*2,
+             layout=layout.fruchterman.reingold)
+      
+      set.seed(1001)
+      g3<- plot(g_test_all,edge.color="grey", vertex.label='',
+             vertex.color="green",
+             vertex.size=g_test_all_eig*10,
+             layout=layout.fruchterman.reingold)
+      #######################################
+      # option2:  use  layout.fruchterman.reingold 
+      # by random subset 1000 vertices for plotting 
+      #######################################
+      # https://ona-book.org/viz-graphs.html
+      #https://github.com/igraph/rigraph/issues/110
+      
+      # random sample 1000 edges
+    
+      # subset the vertices with edges infor to fit the layout.fruchterman.reingold
+      set.seed(1001)
+      rSample_uniq_cluster_cb<- sample(uniq_cluster_cb$cluster_cb_unique ,size=1000)
+      # extract corresponding edge data
+      rSample_test_df2<- test_df2 %>% 
+        filter(cluster_cb_string%in%rSample_uniq_cluster_cb)%>%
+        filter(cluster_cb_vec%in%rSample_uniq_cluster_cb)
+      
+      # creat graph
+      rSample_g_test_all<- graph_from_data_frame(rSample_test_df2, directed = F , vertices =rSample_uniq_cluster_cb )
+      E(rSample_g_test_all)$weight <- E(rSample_g_test_all)$Freq
+      rSample_g_test_all
+      
+      rSample_g_test_all_deg<- igraph::degree(rSample_g_test_all,mode = c("All"))
+      V(rSample_g_test_all)$degree <- rSample_g_test_all_deg
+      which.max(rSample_g_test_all_deg)
+      
+      rSample_g_test_all_bw<-betweenness(rSample_g_test_all,directed = F)
+      V(rSample_g_test_all)$betweenness <- rSample_g_test_all_bw
+      V(rSample_g_test_all)$betweenness
+      which.max(rSample_g_test_all_bw)
+      
+      rSample_g_test_all_eig <- evcent(rSample_g_test_all)$vector
+      V(rSample_g_test_all)$Eigen <- rSample_g_test_all_eig
+      V(rSample_g_test_all)$Eigen
+      which.max(rSample_g_test_all_eig)
+      
+      
+      
+      
+      set.seed(1001)
+      g4<-plot(rSample_g_test_all,edge.color='grey', vertex.label='',
+             vertex.color="green",
+             vertex.size=sqrt(rSample_g_test_all_deg)*2,
+             layout=layout.fruchterman.reingold)
+      
+      plot(rSample_g_test_all,edge.color='grey', vertex.label='',
+             vertex.color="green",
+             vertex.size=sqrt(rSample_g_test_all_deg)*2,
+             layout=layout.fruchterman.reingold)
+            ggsave(filename=paste0(outputPath,i,"lv1_clone_network_allBcr.png"),
+                   plot=last_plot(), width=10, height=10, units="cm",dpi=300)
+            
+      set.seed(1001)
+      g5<-plot(rSample_g_test_all,edge.color='grey', vertex.label='',
+             vertex.color="green",
+             vertex.size=sqrt(rSample_g_test_all_deg)*2,
+             layout=layout.fruchterman.reingold)
+      
+      set.seed(1001)
+      g6<- plot(rSample_g_test_all,edge.color="grey", vertex.label='',
+             vertex.color="green",
+             vertex.size=rSample_g_test_all_eig*5,
+             layout=layout.fruchterman.reingold)
+      
+
+      
+      pdf(file = paste0(outputPath,i,"lv1_clone_network_allBcr.pdf"))
+      print(g1)
+      print(g2)
+      print(g3)
+      print(g4)
+      print(g5)
+      print(g6)
+      dev.off()
+      #######################################
+      # option3:  use  fore layout for large data more than 1000 vertices
+      #######################################
+      g_test_all_L<- graph_from_data_frame(test_df2, directed = F , vertices =uniq_cluster_cb )
+      E(g_test_all_L)$weight <- E(g_test_all_L)$Freq
+      g_test_all_L
+      
+      g_test_all_L_deg<- igraph::degree(g_test_all_L,mode = c("All"))
+      V(g_test_all_L)$degree <- g_test_all_L_deg
+      which.max(g_test_all_L_deg)
+      
+      g_test_all_L_bw<-betweenness(g_test_all_L,directed = F)
+      V(g_test_all_L)$betweenness <- g_test_all_L_bw
+      V(g_test_all_L)$betweenness
+      which.max(g_test_all_L_bw)
+      
+      g_test_all_L_eig <- evcent(g_test_all_L)$vector
+      V(g_test_all_L)$Eigen <- g_test_all_L_eig
+      V(g_test_all_L)$Eigen
+      which.max(g_test_all_L_eig)
+      
+     
+      
+      l<-layout_with_drl(g_test_all_L,  options = drl_defaults$default,
+                         weights = E(g_test_all_L)$weight,dim=2)
+      set.seed(1001)
+      g7<-plot(g_test_all_L,edge.color='grey', vertex.label='',
+             vertex.color="green",
+             vertex.size=sqrt(g_test_all_L_deg)*2,
+             layout=l)
+      set.seed(1001)
+      g8<-plot(g_test_all_L,edge.color='grey', vertex.label='',
+             vertex.color="green",
+             vertex.size=sqrt(g_test_all_L_deg)*2,
+             layout=l)
+      set.seed(1001)
+      g9<-  plot(g_test_all_L,edge.color="grey", vertex.label='',
+             vertex.color="green",
+             vertex.size=g_test_all_L_eig*10,
+             layout=l)
+      outputPlot_moreThan1k<- paste0(outputPath,"lv1_moreThan1kVertices/")
+      ifelse(!dir.exists(outputPlot_moreThan1k),dir.create(outputPlot_moreThan1k,recursive = T),FALSE)
+      pdf(file = paste0(outputPlot_moreThan1k,i,"lv1_clone_network_allBcr.pdf"))
+      
+      print(g7)
+      print(g8)
+      print(g9)
+      dev.off()
+      
+    }
+    
+
+
+    
+    #-------------------------------------
+    
+    
+    
+    
+  }
+  final<- do.call(rbind,final)
+  #final<- setNames(final,nm =df_fileList )
+  return(final)
+}
+
+```
+
+
+
+# MAIN 
+
+#-------------------------------------------------------------------------------
+
+fileList<- c("p36T1","p36T2","p36T4","HD2B1500","HD2B3600","HD2B960","p45T2")
+df_fileList=fileList
+df_bcrInputPath=file_pathBcr
+rdsInputPath=file_pathGex
+outputPath=ouput_path_plot
+i  <- "p36T2"
+
+#-------------------------------------------------------------------------------
+
+
+```{r}
+# global variable
+file_pathBcr<-"/home/hohu/Desktop/covid_top20_bcr_snakemake/result/summary/pipeline_10/step3/"
+file_pathGex<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/result/summary/pip20/no1/"
+
+
+ouput_path_plot<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/result/plot/pip20/no7_BCRnetwork/"
+ifelse(!dir.exists(ouput_path_plot), dir.create(ouput_path_plot, recursive = T),FALSE)
+
+ouput_path_summary<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/result/summary/pip20/no7_BCRnetwork/"
+ifelse(!dir.exists(ouput_path_summary), dir.create(ouput_path_summary, recursive = T),FALSE)
+
+
+
+# Main
+#------------------------------------------------------------------------------
+
+ fileList<- c("p36T1")
+# fileList<- c("p36T1","p36T2","p36T4","HD2B1500","HD2B3600","HD2B960","p45T2")
+#-------------------------------
+clone_network(df_fileList=fileList,df_bcrInputPath=file_pathBcr,
+              rdsInputPath=file_pathGex,outputPath=ouput_path_plot) 
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# save the seesion infor
+
+```{r}
+
+#-------------------
+# https://community.rstudio.com/t/best-practices-for-saving-session-information/44836
+#-------------------
+
+library(sessioninfo)
+library(pander)
+outputSummary<- "/home/hohu/Desktop/covid_top20_bcr_snakemake/result/summary/pipeline_12/no10c_allSc_pureB_sc_integration/"
+pander(sessionInfo(), compact = F)
+
+#library(RColorBrewer)
+```
+
+
