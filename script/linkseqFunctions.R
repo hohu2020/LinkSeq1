@@ -336,13 +336,13 @@ heatmap_VJ <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type,
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
 
       #####################
-      # matching without lv2 correction
+      # matching without lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index = match(Cells(gex_db), bcr_db$cell_id_unique)
 
       #####################
-      # matching after lv2 correction
+      # matching after lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv2 = match(Cells(gex_db), bcr_db$cluster_cb_unique)
@@ -769,13 +769,13 @@ heatmap_VJ <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPath,type,
       # bcr_db <- bcr_db[grep("IGH",bcr_db$v_call ,invert= F),]
 
       #####################
-      # matching without lv2 correction
+      # matching without lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.indexH = match(Cells(gex_db), bcr_dbH$cell_id_unique)
 
       #####################
-      # matching after lv2 correction
+      # matching after lv1 correction
       #####################
       # match index to find the position of the GEX cells in the BCR data
       match.index_lv2H = match(Cells(gex_db), bcr_dbH$cluster_cb_unique)
@@ -1933,3 +1933,323 @@ biased_VHL <- function(df_fileList,df_bcrInputPath,rdsInputPath,outputPlot,outpu
   summary<- do.call(rbind.data.frame,final)
   return(summary)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#==============================================================================#
+# gex by sample (fig-4 g)
+#  
+#==============================================================================#
+
+
+
+combine_sc_multiTime_isoPositive<- function(df_fileList,rdsInput_Path,outputPath_summary,outputPath_plot){
+  final<- list()
+  final_wide<-list()
+  final_wide_ct<- list()
+  final_gex <- list()
+  for(i in  df_fileList ){
+    
+    ## Standardize cell IDs
+    if(i=="p36T1"){
+      sample_id<-"p36D4"
+      dpi<- 1
+      
+    }else if(i=="p36T2"){
+      sample_id<-"p36D45"
+      dpi<- 42
+    }else if(i=="p36T3"){
+      sample_id<-"p36D92"
+      dpi<-89
+    }else if(i=="p36T4"){
+      sample_id<-"p36D169"
+      dpi<-166
+    }else if(i=="p45T2"){
+      sample_id<-"p45D24"
+      dpi<-16
+    }else if(i=="p45T5"){
+      sample_id<-"p45D164"
+      dpi<-16
+    }else if(i=="HD2B1500"){
+      sample_id<-"HD1"
+      dpi<-0
+    }else if(i=="HD2B3600"){
+      sample_id<-"HD2"
+      dpi<-0
+    }else if(i=="HD2B960"){
+      sample_id<-"HD1_stD2"
+      dpi<-0
+    }else if( i=="p16T1B"){
+      sample_id<-"p16D9"
+      dpi<- 2
+    }else if(i=="p18T1"){
+      sample_id<-"p18D13"
+      dpi<- 1
+    }else {
+      print("now only support p36 time points")
+    }
+    
+    
+    # Read GEX data
+    gex_db <- readRDS(paste0(outputSummary,i,"_singleR_AnnoSC_HX.rds"))
+    
+    #----------------------------------------------------------------------------
+    # testing code
+    # Add heavy and light chain isotype as features to the dataset
+    
+    
+    gex_db[["percent.IgA1.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHA1")
+    gex_db[["percent.IgA2.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHA2")
+    
+    
+    gex_db[["percent.IgM.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHM$")
+    
+    
+    gex_db[["percent.IgG1.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG1")
+    gex_db[["percent.IgG2.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG2")
+    gex_db[["percent.IgG3.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG3")
+    gex_db[["percent.IgG4.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG4")
+    
+    
+    gex_db[["percent.IgD.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHD$")
+    
+    gex_db[["percent.IgE.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHE$")
+    
+    
+    gex_db[["percent.K.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGKC")
+    
+    gex_db[["percent.L.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGLC")
+    
+    count_matrics <- as.data.frame(gex_db@assays$RNA@counts)
+    # Extract antibody heavy  chain isotype infor
+    #new_matrics<- count_matrics %>% rownames_to_column()
+    # new_matrics[1:5,1:5]
+    tdb<- t <- t(count_matrics)
+    tdb[1:4,1:4]
+    tdb_s<- tdb[,c( "IGHA1","IGHA2",   "IGHE" ,   "IGHG4",   "IGHG2"  ,   "IGHG1" ,  "IGHG3",   "IGHD",    "IGHM")]
+    tdb_s_df <- tdb_s %>% as.data.frame()  %>% rownames_to_column()
+    head(tdb_s_df )
+    
+    
+    ##############################
+    # add gex_annotation to the iso plot
+    ##############################
+    match.index = match(tdb_s_df$rowname, Cells(gex_db))
+    
+    # What proportion of BCRs don’t have GEX information?
+    mean(is.na(match.index))
+    mean(!is.na(match.index))
+    
+    ### Transfer GEX annotations into the BCR data
+    
+    
+    # Add annotations to BCR data
+    cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
+    tdb_s_df$gex_annotation= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
+    tdb_s_df$gex_annotation[1:5]
+    
+    ##############################
+    # add isotype percentage to the iso plot
+    ##############################
+    
+    # Add annotations to BCR data
+    # igM
+    cell.igM.pct = as.character(gex_db@meta.data$percent.IgM.iso)
+    tdb_s_df$igM.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igM.pct[x])}))
+    tdb_s_df$igM.pct[1:5]
+    tdb_s_df[1:5,]
+    # IgD
+    cell.igD.pct = as.character(gex_db@meta.data$percent.IgD.iso)
+    tdb_s_df$igD.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igD.pct[x])}))
+    tdb_s_df[1:5,]
+    
+    # IgG
+    cell.igG1.pct = as.character(gex_db@meta.data$percent.IgG1.iso)
+    tdb_s_df$igG1.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG1.pct[x])}))
+    
+    cell.igG2.pct = as.character(gex_db@meta.data$percent.IgG2.iso)
+    tdb_s_df$igG2.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG2.pct[x])}))
+    
+    cell.igG3.pct = as.character(gex_db@meta.data$percent.IgG3.iso)
+    tdb_s_df$igG3.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG3.pct[x])}))
+    
+    cell.igG4.pct = as.character(gex_db@meta.data$percent.IgG4.iso)
+    tdb_s_df$igG4.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG4.pct[x])}))
+    tdb_s_df[1:5,]
+    
+    
+    # IgA
+    cell.igA1.pct = as.character(gex_db@meta.data$percent.IgA1.iso)
+    tdb_s_df$igA1.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igA1.pct[x])}))
+    
+    cell.igA2.pct = as.character(gex_db@meta.data$percent.IgA2.iso)
+    tdb_s_df$igA2.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igA2.pct[x])}))
+    tdb_s_df[1:5,]
+    
+    
+    # IgE
+    cell.igE.pct = as.character(gex_db@meta.data$percent.IgE.iso)
+    tdb_s_df$igE.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igE.pct[x])}))
+    tdb_s_df[1:5,]
+    
+    # Igk
+    #cell.igK.pct = as.character(gex_db@meta.data$percent.K.iso)
+    #tdb_s_df$igK.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igK.pct[x])}))
+    #tdb_s_df[1:5,]
+    
+    
+    # Ig_lambda
+    #cell.igLambda.pct = as.character(gex_db@meta.data$percent.L.iso)
+    #tdb_s_df$igL.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igLambda.pct[x])}))
+    #tdb_s_df[1:5,]
+    
+    # only select b cells
+    tdb_s_df_b <- tdb_s_df[grep(pattern = "B cells|Plasmablasts",tdb_s_df$gex_annotation ),]
+    dim(tdb_s_df)  # for p36t1:  4407  cells
+    dim(tdb_s_df_b)  # for p36t1:  3155  are B  cells
+    tdb_s_df_b[1:4,1:4]
+    head(tdb_s_df_b)
+    table( tdb_s_df_b$gex_annotation)
+    # select gex and rowname for gex plot by sample
+    tdb_s_df_b_gexBySample<- tdb_s_df_b %>% select(rowname,gex_annotation)
+    tdb_s_df_b_gexBySample$sample<- sample_id
+    head(tdb_s_df_b_gexBySample)
+    colnames(tdb_s_df_b_gexBySample)[1]<- "cell_id_uniq"
+    
+    #----------------------------------------------------------------------------
+    # for count 
+    wide_ct <- tdb_s_df_b[,c(1:11)]
+    head(wide_ct)
+    names(wide_ct)[names(wide_ct)=="rowname"]<- "cell_id_unique"
+    
+    tdb_long_count <- tdb_s_df_b[,c(1:11)] %>% pivot_longer(cols =starts_with("IGH") , names_to = "iso",values_to = "count") %>%
+      filter(count>0) %>% mutate(cell_id_unique=rowname) %>% mutate(cell_id_unique_iso=paste0(cell_id_unique,"_",iso))%>%
+      select(cell_id_unique_iso,cell_id_unique,gex_annotation,iso,count)
+    head(tdb_long_count)
+    dim(tdb_long_count)  # for p36t1:  1985 out of 3155 B cells have isotype information
+    
+    table(tdb_long_count$iso)
+    
+    # for percentage
+    tdb_long_percent_1<- tdb_s_df_b[,c(1,11:20)]
+    colnames(tdb_long_percent_1)<- c("cell_id_unique_pt","gex_annotation","IGHM","IGHD","IGHG1" ,"IGHG2","IGHG3",
+                                     "IGHG4","IGHA1", "IGHA2" ,"IGHE" )
+    wide_pt<- tdb_long_percent_1
+    head(wide_pt)
+    #wide_ptCt
+    
+    wide_pt$sample<- sample_id
+    
+    tdb_long_percent<- tdb_long_percent_1 %>% pivot_longer(cols =IGHM:IGHE , names_to = "iso_pt",values_to = "percent")%>%
+      filter(percent>0) %>% mutate(gex_annotation_pt=gex_annotation)%>%
+      mutate(cell_id_unique_iso=paste0(cell_id_unique_pt,"_",iso_pt))%>%
+      select(cell_id_unique_iso,cell_id_unique_pt,gex_annotation_pt,iso_pt,percent)
+    
+    t2 <-head(tdb_long_percent,10)
+    dim(tdb_long_percent)
+    head(tdb_long_percent)
+    table(tdb_long_percent$iso_pt)
+    
+    tdb_long <- inner_join(x=tdb_long_count,y=tdb_long_percent,by=c("cell_id_unique_iso")) %>%
+      select(cell_id_unique,gex_annotation,iso,count,percent)
+    dim(tdb_long)
+    head(tdb_long,5)
+    
+    #----------------------------------------------------------------------------
+    # compare combined two data pt and count
+    #table(ifelse(tdb_long$gex_annotation==tdb_long$gex_annotation_pt, "yes","no"))
+    #table(ifelse(tdb_long$cell_id_unique==tdb_long$cell_id_unique_pt, "yes","no"))
+    
+    # add sample name
+    tdb_long$sample<- sample_id
+    head(tdb_long)
+    table(tdb_long$gex_annotation)
+    
+    final[[i]]<- tdb_long
+    final_wide[[i]] <- wide_pt
+    final_wide_ct[[i]] <-wide_ct
+    final_gex[[i]]<-tdb_s_df_b_gexBySample
+    
+    
+    
+  }
+  # combine individual samples
+  combined_data <- do.call(rbind,final)
+  combined_data_wide<- do.call(rbind,final_wide)
+  combined_data_wideCt<- do.call(rbind,final_wide_ct)
+  combined_data_gex <- do.call(rbind,final_gex)
+  # add group infor to combined_data_gex
+  combined_data_gex$group <- sapply(substr(combined_data_gex$sample,1,2), "[",1)
+  # add factor order to samples
+  combined_data$sample <- factor(combined_data$sample,
+                                 levels = c( "HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164"))
+  combined_data_wide$sample <- factor(combined_data_wide$sample,
+                                      levels = c("HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164" ))
+  combined_data_wideCt$sample <- factor(combined_data_wide$sample,
+                                        levels = c("HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164"))
+  combined_data_gex$sample <- factor(combined_data_gex$sample,
+                                     levels = c("HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164"))
+  
+  write_tsv(combined_data_wide,file = paste0(outputPath_summary,"combined_iso_widePt.tsv"))
+  write_tsv(combined_data_wideCt,file = paste0(outputPath_summary,"combined_data_wideCt.tsv"))
+  
+  ##########################
+  # barplot of gex by sample 
+  ##########################
+  colours<- c( "Exhausted B cells"="red1",  "Naive B cells"="royalblue2", "Non-switched memory B cells"="seagreen2", "Plasmablasts"="grey20","Switched memory B cells"="yellow2")
+  
+  
+  
+  My_Theme = theme(
+    panel.border = element_rect(colour="black", fill = NA),
+    strip.text = element_text(size = 4.5),
+    panel.background = element_blank(),
+    plot.title = element_text(color="black", size=8, face="bold"),
+    axis.title.x = element_text(color="black", size=12),
+    axis.title.y = element_text(color="black", size=12),
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust=1,size=10, face="bold"),
+    axis.text.y = element_text( size=10, face="bold"))
+  
+  
+  # stack plot 
+  p_gex_1 <- combined_data_gex %>% group_by(gex_annotation,sample,  cell_id_uniq)%>%
+    dplyr::summarise(count=n())  %>%ungroup() %>%
+    ggplot( aes(fill=gex_annotation, y=count, x=sample)) +
+    geom_bar(position="stack", stat="identity") +
+    labs(title="B cell types by sample time ",x ="Samples", y = "Counts") +  
+    scale_fill_manual(values = colours) +My_Theme 
+  p_gex_1
+  
+  
+  
+  
+  #---------------------------------------------------------------
+  # percnetage plot 
+  p_gex_pt1 <- combined_data_gex %>% group_by(gex_annotation,sample,  cell_id_uniq,group)%>%
+    summarise(count=n())  %>%ungroup() %>%
+    ggplot( aes(fill=gex_annotation, y=count, x=sample)) +
+    geom_bar(position="fill", stat = "identity") +labs(title="B cell types by sample time ",
+                                                       x ="Samples", y = "Percentage") +  scale_fill_manual(values = colours)  +My_Theme
+  p_gex_pt1
+  
+  ggsave(filename=paste0(outputPath_plot,"gex_bySample.png"),
+         plot=p_gex_pt1, width=length(unique(combined_data_gex$sample))*2, height=12, units="cm",dpi = 300)
+  
+  
+  
+  return(combined_data)
+}
+
+

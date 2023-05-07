@@ -10,6 +10,17 @@ output: html_document
  
 # Notes: 
   - All the input and out path need to be changed to your local path 
+ 
+
+```{r }
+knitr::opts_chunk$set( echo=T,warning=F,message=F,error=F, results='hide', fig.keep='all',
+  comment = "#>", fig.width = 6
+)
+
+```
+
+ 
+ 
   
 # load library 
 
@@ -160,7 +171,7 @@ saveRDS(object =immune.combined, file = paste0(outputSummary,"allSample_sc_BCR_i
 ##=========================================================================================####
 
 table(immune.combined$label.main, immune.combined$sample)
-# set color mannully
+# set color manually
 all_main_cellTypes<- c("B cells", "CD4+ T cells","CD8+ T cells", "Dendritic cells","NK cells", "Monocytes","T cells",
                        "Basophils","Neutrophils","Progenitors")
 
@@ -600,30 +611,58 @@ featureList_isoFull <- c( "IGHD","IGHM","IGHA1","IGHA2","IGHE","IGHG1","IGHG2","
 
 #  Accute infection analysis
 
+
+
+# read acute sc 
+```{r}
+
+acuteInfection_rdsInputPath<-  "/home/hohu/Desktop/LinkSeq1/data/sc/acuteInfec/"
+
+acuteInfection_list<- c("p18T1", "p16T1B", "p36T1")
+
+combinedSc<-list()
+for(i in seq_along(acuteInfection_list)){
+  name.i <- acuteInfection_list[i]
+  rna <- readRDS(paste0(acuteInfection_rdsInputPath,name.i,".rds"))
+  combinedSc[[i]]<-rna
+}
+combinedSc <- setNames(combinedSc,acuteInfection_list)
+#######
+# seperate sc 
+#######
+sapply(combinedSc, dim)
+p16D9_sc <- combinedSc[["p16T1B"]]
+p18D13_sc <- combinedSc[["p18T1"]]
+p36D4_sc <- combinedSc[["p36T1"]]
+
+
+```
+
+
+
 ## singleR prediction for early infection samples
 
 ```{r}
-Idents(sc_combine)<-sc_combine$sample 
-# subset the early infection
-earlyInfection_list<- c("p16D9", "p18D13", "p36D4")
-early_infection<- subset(sc_combine, idents=earlyInfection_list)
+ 
+acuteInfection <- merge(p16D9_sc,y=c(p18D13_sc,p36D4_sc),  add.cell.ids = c("p16D9", "p18D13", "p36D4"), project="covid")
+ 
 # load ref data for singleR prediction
     ref_Monaco <- MonacoImmuneData()
     
 # subset the sc
-table(early_infection$sample)
+table(acuteInfection$sample)
   # filter cells
-  sub_earlyInfection <- subset(early_infection, subset = nFeature_RNA > 150 & nFeature_RNA < 2000) 
+  sub_acuteInfection <- subset(acuteInfection, subset = nFeature_RNA > 150 & nFeature_RNA < 2000) 
   
-table(sub_earlyInfection$sample)
+table(sub_acuteInfection$sample)
 
- pred.gex_eInf_main<-SingleR(GetAssayData(sub_earlyInfection, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.main)
+ pred.gex_eInf_main<-SingleR(GetAssayData(sub_acuteInfection, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.main)
  
-pred.gex_eInf_fine<-SingleR(GetAssayData(sub_earlyInfection, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.fine)
+pred.gex_eInf_fine<-SingleR(GetAssayData(sub_acuteInfection, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.fine)
     
 # assign the cell types to the sc dataset
-sub_earlyInfection$label.main<- pred.gex_eInf_main$labels
-sub_earlyInfection$label.fine<- pred.gex_eInf_fine$labels
+sub_acuteInfection$label.main<- pred.gex_eInf_main$labels
+sub_acuteInfection$label.fine<- pred.gex_eInf_fine$labels
 
  # save RDS
 # saveRDS(sub_earlyInfection,file = paste0(rdsOutput_Summary,"earlyInfectionMerg.rds"))
@@ -638,7 +677,7 @@ sub_earlyInfection$label.fine<- pred.gex_eInf_fine$labels
     #ggsave(filename=paste0(outputPlot,i,"_singlR_deltas.png"), plot=singlR_deltas, width=16, height=16, units="cm",dpi=300)
 
 
- ggsave(filename=paste0(outputPlot,"ealryInfection_singleR.png"), plot=singlR_heatmap,
+ ggsave(filename=paste0(outputPlot,"acuteInfection_singleR.png"), plot=singlR_heatmap,
            width=18, height=10, units="cm",dpi=300)
 
 
@@ -649,35 +688,35 @@ sub_earlyInfection$label.fine<- pred.gex_eInf_fine$labels
 # normalization
 
 ```{r}
-rna2 <- NormalizeData(sub_earlyInfection, normalization.method = "LogNormalize", scale.factor = 10000)
+norSub_acuteInfection <- NormalizeData(sub_acuteInfection, normalization.method = "LogNormalize", scale.factor = 10000)
 
-rna2  <- FindVariableFeatures(rna2 , selection.method = "vst", nfeatures = 2000)
- 
+norSub_acuteInfection  <- FindVariableFeatures(norSub_acuteInfection , selection.method = "vst", nfeatures = 2000)
+
 # Scaling the data
-all.genes <- rownames(rna2)
-rna2 <- ScaleData(rna2, features = all.genes)
+all.genes <- rownames(norSub_acuteInfection)
+norSub_acuteInfection <- ScaleData(norSub_acuteInfection, features = all.genes)
 
-rna2 <- RunPCA(rna2, features = VariableFeatures(object = rna2))
+norSub_acuteInfection <- RunPCA(norSub_acuteInfection, features = VariableFeatures(object = norSub_acuteInfection))
 
-print(rna2[["pca"]], dims = 1:5, nfeatures = 5)
+print(norSub_acuteInfection[["pca"]], dims = 1:5, nfeatures = 5)
 
-VizDimLoadings(rna2, dims = 1:2, reduction = "pca")
+VizDimLoadings(norSub_acuteInfection, dims = 1:2, reduction = "pca")
 
-ElbowPlot(rna2)
+ElbowPlot(norSub_acuteInfection)
 
-rna2 <- FindNeighbors(rna2, dims = 1:15)
-rna2 <- FindClusters(rna2, resolution = 0.5)
+norSub_acuteInfection <- FindNeighbors(norSub_acuteInfection, dims = 1:15)
+norSub_acuteInfection <- FindClusters(norSub_acuteInfection, resolution = 0.5)
 
 # Look at cluster IDs of the first 5 cells
-head(Idents(rna2), 5)
+head(Idents(norSub_acuteInfection), 5)
 
 # If you haven't installed UMAP, you can do so via reticulate::py_install(packages =
 # 'umap-learn')
-rna2 <- RunUMAP(rna2, dims = 1:12)
+norSub_acuteInfection <- RunUMAP(norSub_acuteInfection, dims = 1:12)
 
 # note that you can set `label = TRUE` or use the LabelClusters function to help label
 # individual clusters
-DimPlot(rna2, reduction = "umap")
+DimPlot(norSub_acuteInfection, reduction = "umap")
 
 ```
 
@@ -685,38 +724,34 @@ DimPlot(rna2, reduction = "umap")
  
 ```{r}
 # remove cells < 5 cells 
-Idents(rna2)<- rna2$label.main
-cell_ct<-as.data.frame(table(rna2$label.main))
+Idents(norSub_acuteInfection)<- norSub_acuteInfection$label.main
+cell_ct<-as.data.frame(table(norSub_acuteInfection$label.main))
 cell_ct_main <- cell_ct %>%filter(Freq>5)
 cell_ct_mainList <- cell_ct_main$Var1
 
-accuteInfection_main <- subset(rna2, idents =cell_ct_mainList )
+acuteInfection_main <- subset(norSub_acuteInfection, idents =cell_ct_mainList )
 
-Idents(accuteInfection_main)<- accuteInfection_main$label.main
+
+Idents(acuteInfection_main)<- acuteInfection_main$label.main
 # remove cells type < 5 
-cell.fre<- as.data.frame(table(rna2$label.main))  %>% mutate(pct=Freq/sum(Freq)*100) %>% filter(pct>1)
-major.sc <- subset(rna2, idents=cell.fre$Var1)
- 
-DimPlot_noLb<-DimPlot(major.sc, reduction = "umap",label = F, pt.size = 0.2) 
-DimPlot_noLb
- 
-ggsave(filename=paste0(outputPlot,"earlyInfecMerg_DimPlot_labelMain_noLB.png"),
-          plot=DimPlot_noLb, width=16, height=10, units="cm",dpi=300)
- 
+cell.fre<- as.data.frame(table(norSub_acuteInfection$label.main))  %>% mutate(pct=Freq/sum(Freq)*100) %>% filter(pct>1)
+major.sc <- subset(norSub_acuteInfection, idents=cell.fre$Var1)
 
+DimPlot_lb<- DimPlot(major.sc, reduction = "umap",label = TRUE, pt.size = 0.2) 
+DimPlot_lb
 
 # combine T cells , CD4 and CD8 T cells
 
 major.sc_mainLabel <- RenameIdents(object = major.sc, `CD4+ T cells` = "All T cells")
-#major.sc_mainLabel <- RenameIdents(object = major.sc_mainLabel, `CD8+ T cells` = "All T cells")
+major.sc_mainLabel <- RenameIdents(object = major.sc_mainLabel, `CD8+ T cells` = "All T cells")
 major.sc_mainLabel <- RenameIdents(object = major.sc_mainLabel, `T cells` = "All T cells")
 
 DimPlot_mainCell<- DimPlot(major.sc_mainLabel, reduction = "umap",label = TRUE, pt.size = 0.2) 
 DimPlot_mainCell
- 
 
-ggsave(filename=paste0(outputPlot,"earlyInfecMerg_DimPlot_labelMain_LB_CombTcells.png"),
+ggsave(filename=paste0(outputPlot,"acuteInfecMerg_DimPlot_labelMain_LB_CombTcells.png"),
           plot=DimPlot_mainCell, width=16, height=10, units="cm",dpi=300)
+
  
  
 ```
@@ -749,6 +784,7 @@ ridP
  
 
 cd_genes <- c("IGHD","IGHM","IGHA1","IGHA2","IGHE","IGHG1","IGHG2","IGHG3","IGHG4")
+levels(major.sc_mainLabel) <- c("All T cells", "B cells", "Monocytes",  "Dendritic cells","Progenitors", "NK cells")
 dotPlot<- DotPlot(object = major.sc_mainLabel, features = cd_genes) + RotatedAxis() + My_Theme_Dot
 dotPlot 
 
@@ -762,8 +798,527 @@ dotPlot
 
 
 
-# print session infor
+
+
+
+figure-4g
 ```{r}
+
+# global variable
+#-------------------------------------------------------------------------------
+
+ 
+fileList<- c("HD2B960","HD2B1500","HD2B3600","p16T1B","p18T1","p45T2","p45T5","p36T1","p36T2","p36T4")
+ 
+df_fileList=fileList
+outputPath_summary=outputSummary 
+rdsInput_Path=rdsInputPath
+outputPath_plot=outputPlot
+ 
+i<- "p16T1B"
+
+
+#-------------------------------------------------------------------------------
+
+
+combine_sc_multiTime_isoPositive<- function(df_fileList,rdsInput_Path,outputPath_summary,outputPath_plot){
+  final<- list()
+  final_wide<-list()
+  final_wide_ct<- list()
+  final_gex <- list()
+  for(i in  df_fileList ){
+    
+      ## Standardize cell IDs
+     if(i=="p36T1"){
+      sample_id<-"p36D4"
+      dpi<- 1
+      
+    }else if(i=="p36T2"){
+      sample_id<-"p36D45"
+      dpi<- 42
+    }else if(i=="p36T3"){
+      sample_id<-"p36D92"
+      dpi<-89
+    }else if(i=="p36T4"){
+      sample_id<-"p36D169"
+      dpi<-166
+    }else if(i=="p45T2"){
+      sample_id<-"p45D24"
+      dpi<-16
+    }else if(i=="p45T5"){
+      sample_id<-"p45D164"
+      dpi<-16
+    }else if(i=="HD2B1500"){
+      sample_id<-"HD1"
+      dpi<-0
+    }else if(i=="HD2B3600"){
+      sample_id<-"HD2"
+      dpi<-0
+    }else if(i=="HD2B960"){
+      sample_id<-"HD1_stD2"
+      dpi<-0
+    }else if( i=="p16T1B"){
+      sample_id<-"p16D9"
+      dpi<- 2
+      }else if(i=="p18T1"){
+      sample_id<-"p18D13"
+      dpi<- 1
+      }else {
+      print("now only support p36 time points")
+    }
+    
+
+  # Read GEX data
+  gex_db <- readRDS(paste0(outputSummary,i,"_singleR_AnnoSC_HX.rds"))
+
+    #----------------------------------------------------------------------------
+    # testing code
+   # Add heavy and light chain isotype as features to the dataset
+
+
+    gex_db[["percent.IgA1.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHA1")
+    gex_db[["percent.IgA2.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHA2")
+
+
+    gex_db[["percent.IgM.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHM$")
+
+
+    gex_db[["percent.IgG1.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG1")
+    gex_db[["percent.IgG2.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG2")
+    gex_db[["percent.IgG3.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG3")
+    gex_db[["percent.IgG4.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHG4")
+
+
+    gex_db[["percent.IgD.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHD$")
+
+    gex_db[["percent.IgE.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGHE$")
+
+
+    gex_db[["percent.K.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGKC")
+
+    gex_db[["percent.L.iso"]] <- PercentageFeatureSet(gex_db, pattern = "^IGLC")
+
+    count_matrics <- as.data.frame(gex_db@assays$RNA@counts)
+    # Extract antibody heavy  chain isotype infor
+    #new_matrics<- count_matrics %>% rownames_to_column()
+    # new_matrics[1:5,1:5]
+    tdb<- t <- t(count_matrics)
+    tdb[1:4,1:4]
+    tdb_s<- tdb[,c( "IGHA1","IGHA2",   "IGHE" ,   "IGHG4",   "IGHG2"  ,   "IGHG1" ,  "IGHG3",   "IGHD",    "IGHM")]
+    tdb_s_df <- tdb_s %>% as.data.frame()  %>% rownames_to_column()
+    head(tdb_s_df )
+
+
+    ##############################
+    # add gex_annotation to the iso plot
+    ##############################
+    match.index = match(tdb_s_df$rowname, Cells(gex_db))
+
+    # What proportion of BCRs don’t have GEX information?
+    mean(is.na(match.index))
+    mean(!is.na(match.index))
+
+    ### Transfer GEX annotations into the BCR data
+
+
+    # Add annotations to BCR data
+    cell.annotation = as.character(gex_db@meta.data$SingleR.labels)
+    tdb_s_df$gex_annotation= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.annotation[x])}))
+    tdb_s_df$gex_annotation[1:5]
+
+    ##############################
+    # add isotype percentage to the iso plot
+    ##############################
+
+    # Add annotations to BCR data
+    # igM
+    cell.igM.pct = as.character(gex_db@meta.data$percent.IgM.iso)
+    tdb_s_df$igM.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igM.pct[x])}))
+    tdb_s_df$igM.pct[1:5]
+    tdb_s_df[1:5,]
+    # IgD
+    cell.igD.pct = as.character(gex_db@meta.data$percent.IgD.iso)
+    tdb_s_df$igD.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igD.pct[x])}))
+    tdb_s_df[1:5,]
+
+    # IgG
+    cell.igG1.pct = as.character(gex_db@meta.data$percent.IgG1.iso)
+    tdb_s_df$igG1.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG1.pct[x])}))
+
+    cell.igG2.pct = as.character(gex_db@meta.data$percent.IgG2.iso)
+    tdb_s_df$igG2.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG2.pct[x])}))
+
+    cell.igG3.pct = as.character(gex_db@meta.data$percent.IgG3.iso)
+    tdb_s_df$igG3.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG3.pct[x])}))
+
+    cell.igG4.pct = as.character(gex_db@meta.data$percent.IgG4.iso)
+    tdb_s_df$igG4.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igG4.pct[x])}))
+    tdb_s_df[1:5,]
+
+
+    # IgA
+    cell.igA1.pct = as.character(gex_db@meta.data$percent.IgA1.iso)
+    tdb_s_df$igA1.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igA1.pct[x])}))
+
+    cell.igA2.pct = as.character(gex_db@meta.data$percent.IgA2.iso)
+    tdb_s_df$igA2.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igA2.pct[x])}))
+    tdb_s_df[1:5,]
+
+
+    # IgE
+    cell.igE.pct = as.character(gex_db@meta.data$percent.IgE.iso)
+    tdb_s_df$igE.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igE.pct[x])}))
+    tdb_s_df[1:5,]
+
+    # Igk
+    #cell.igK.pct = as.character(gex_db@meta.data$percent.K.iso)
+    #tdb_s_df$igK.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igK.pct[x])}))
+    #tdb_s_df[1:5,]
+
+
+    # Ig_lambda
+    #cell.igLambda.pct = as.character(gex_db@meta.data$percent.L.iso)
+    #tdb_s_df$igL.pct= unlist(lapply(match.index,function(x){ifelse(is.na(x),NA, cell.igLambda.pct[x])}))
+    #tdb_s_df[1:5,]
+
+    # only select b cells
+    tdb_s_df_b <- tdb_s_df[grep(pattern = "B cells|Plasmablasts",tdb_s_df$gex_annotation ),]
+    dim(tdb_s_df)  # for p36t1:  4407  cells
+    dim(tdb_s_df_b)  # for p36t1:  3155  are B  cells
+    tdb_s_df_b[1:4,1:4]
+    head(tdb_s_df_b)
+    table( tdb_s_df_b$gex_annotation)
+    # select gex and rowname for gex plot by sample
+    tdb_s_df_b_gexBySample<- tdb_s_df_b %>% select(rowname,gex_annotation)
+    tdb_s_df_b_gexBySample$sample<- sample_id
+    head(tdb_s_df_b_gexBySample)
+    colnames(tdb_s_df_b_gexBySample)[1]<- "cell_id_uniq"
+
+    #----------------------------------------------------------------------------
+    # for count 
+    wide_ct <- tdb_s_df_b[,c(1:11)]
+    head(wide_ct)
+    names(wide_ct)[names(wide_ct)=="rowname"]<- "cell_id_unique"
+
+    tdb_long_count <- tdb_s_df_b[,c(1:11)] %>% pivot_longer(cols =starts_with("IGH") , names_to = "iso",values_to = "count") %>%
+      filter(count>0) %>% mutate(cell_id_unique=rowname) %>% mutate(cell_id_unique_iso=paste0(cell_id_unique,"_",iso))%>%
+      select(cell_id_unique_iso,cell_id_unique,gex_annotation,iso,count)
+    head(tdb_long_count)
+    dim(tdb_long_count)  # for p36t1:  1985 out of 3155 B cells have isotype information
+
+    table(tdb_long_count$iso)
+
+    # for percentage
+    tdb_long_percent_1<- tdb_s_df_b[,c(1,11:20)]
+    colnames(tdb_long_percent_1)<- c("cell_id_unique_pt","gex_annotation","IGHM","IGHD","IGHG1" ,"IGHG2","IGHG3",
+                                   "IGHG4","IGHA1", "IGHA2" ,"IGHE" )
+    wide_pt<- tdb_long_percent_1
+    head(wide_pt)
+    #wide_ptCt
+
+    wide_pt$sample<- sample_id
+
+    tdb_long_percent<- tdb_long_percent_1 %>% pivot_longer(cols =IGHM:IGHE , names_to = "iso_pt",values_to = "percent")%>%
+      filter(percent>0) %>% mutate(gex_annotation_pt=gex_annotation)%>%
+      mutate(cell_id_unique_iso=paste0(cell_id_unique_pt,"_",iso_pt))%>%
+      select(cell_id_unique_iso,cell_id_unique_pt,gex_annotation_pt,iso_pt,percent)
+
+    t2 <-head(tdb_long_percent,10)
+    dim(tdb_long_percent)
+    head(tdb_long_percent)
+    table(tdb_long_percent$iso_pt)
+
+    tdb_long <- inner_join(x=tdb_long_count,y=tdb_long_percent,by=c("cell_id_unique_iso")) %>%
+      select(cell_id_unique,gex_annotation,iso,count,percent)
+    dim(tdb_long)
+    head(tdb_long,5)
+    
+  #----------------------------------------------------------------------------
+  # compare combined two data pt and count
+    #table(ifelse(tdb_long$gex_annotation==tdb_long$gex_annotation_pt, "yes","no"))
+    #table(ifelse(tdb_long$cell_id_unique==tdb_long$cell_id_unique_pt, "yes","no"))
+
+    # add sample name
+    tdb_long$sample<- sample_id
+    head(tdb_long)
+    table(tdb_long$gex_annotation)
+
+    final[[i]]<- tdb_long
+    final_wide[[i]] <- wide_pt
+    final_wide_ct[[i]] <-wide_ct
+    final_gex[[i]]<-tdb_s_df_b_gexBySample
+
+
+
+  }
+  # combine individual samples
+  combined_data <- do.call(rbind,final)
+  combined_data_wide<- do.call(rbind,final_wide)
+  combined_data_wideCt<- do.call(rbind,final_wide_ct)
+  combined_data_gex <- do.call(rbind,final_gex)
+  # add group infor to combined_data_gex
+  combined_data_gex$group <- sapply(substr(combined_data_gex$sample,1,2), "[",1)
+  # add factor order to samples
+  combined_data$sample <- factor(combined_data$sample,
+                                 levels = c( "HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164"))
+  combined_data_wide$sample <- factor(combined_data_wide$sample,
+                                 levels = c("HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164" ))
+  combined_data_wideCt$sample <- factor(combined_data_wide$sample,
+                                      levels = c("HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164"))
+  combined_data_gex$sample <- factor(combined_data_gex$sample,
+                                     levels = c("HD2","HD1","HD1_stD2", "p16D9","p18D13","p36D4","p36D45","p36D169","p45D24","p45D164"))
+  
+  write_tsv(combined_data_wide,file = paste0(outputPath_summary,"combined_iso_widePt.tsv"))
+  write_tsv(combined_data_wideCt,file = paste0(outputPath_summary,"combined_data_wideCt.tsv"))
+  
+  ##########################
+  # barplot of gex by sample 
+  ##########################
+  colours<- c( "Exhausted B cells"="red1",  "Naive B cells"="royalblue2", "Non-switched memory B cells"="seagreen2", "Plasmablasts"="grey20","Switched memory B cells"="yellow2")
+
+
+  
+  My_Theme = theme(
+    panel.border = element_rect(colour="black", fill = NA),
+    strip.text = element_text(size = 4.5),
+    panel.background = element_blank(),
+    plot.title = element_text(color="black", size=8, face="bold"),
+    axis.title.x = element_text(color="black", size=12),
+    axis.title.y = element_text(color="black", size=12),
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust=1,size=10, face="bold"),
+    axis.text.y = element_text( size=10, face="bold"))
+  
+  My_Theme1 = theme(
+    panel.border = element_rect(colour="black", fill = NA),
+    strip.text = element_text(size = 4.5),
+    panel.background = element_blank(),
+    plot.title = element_text(color="black", size=8, face="bold"),
+    axis.title.x = element_text(color="black", size=12),
+    axis.title.y = element_text(color="black", size=12),
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust=1,size=10, face="bold"),
+    axis.text.y = element_text( size=10, face="bold") )
+  
+  My_Theme_face_wrap_blank_expt_y_upper = theme( 
+    panel.border = element_rect(colour="black", fill = NA),
+    strip.text = element_text(size = 4.5),
+    panel.background = element_blank(),
+    axis.ticks.x.bottom = element_blank(),
+    plot.title = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text( size=8, face="bold"),
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust=1,size=8, face="bold"),
+    axis.text.y = element_text( size=8, face="bold"),
+    legend.position="none")
+  
+  My_Theme_face_wrap_blank_expt_y_stripText = theme( 
+    panel.border = element_rect(colour="black", fill = NA),
+    strip.text = element_blank( ),
+    panel.background = element_blank(),
+    axis.ticks.x.bottom = element_blank(),
+    plot.title = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text( size=8, face="bold"),
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust=1,size=8, face="bold"),
+    axis.text.y = element_text( size=8, face="bold"),
+    legend.position="none")
+  # stack plot 
+  p_gex_1 <- combined_data_gex %>% group_by(gex_annotation,sample,  cell_id_uniq)%>%
+    dplyr::summarise(count=n())  %>%ungroup() %>%
+    ggplot( aes(fill=gex_annotation, y=count, x=sample)) +
+    geom_bar(position="stack", stat="identity") +
+    labs(title="B cell types by sample time ",x ="Samples", y = "Counts") +  
+    scale_fill_manual(values = colours) +My_Theme 
+  p_gex_1
+  
+  p_gex_1_blank<- p_gex_1+ My_Theme_face_wrap_blank_expt_y_upper
+  p_gex_1_blank
+  
+  # summary table
+  
+  comb_group <- combined_data_gex %>% group_by(  gex_annotation,sample,  group)%>%
+    dplyr::summarise(count=n()) 
+  
+  
+  comb_total<- combined_data_gex %>% group_by(  sample)%>%
+    dplyr::summarise(total_count=n()) 
+  # full join
+  comb_sum1  <- full_join(comb_group, comb_total, by="sample" ) %>% mutate(pt=count/total_count*100) %>% 
+  mutate(phase=ifelse(sample=="HD1"|sample=="HD2"|sample=="p36D169"|sample=="p45D164",'HD/late convalescence',
+                      ifelse(sample=="p36D4"|sample=="p16D9"|sample=="p18D13", 'Acute infection',
+                            ifelse(sample=="p36D45"|sample=="p45D24", 'Early convalescence','CD40L_CpG_sti'))))
+  comb_sum<- comb_sum1 %>% 
+    filter(!sample=="HD1_stD2")
+  head(comb_sum1)
+  
+    #---------------------------------------------------------------
+  
+ 
+
+# add statistics
+comb_sum_pt <-comb_sum %>% dplyr::select(pt,phase)  
+compare_means(pt ~ phase, data = comb_sum_pt)
+
+# Global test
+compare_means(pt ~ phase, data = comb_sum_pt, method = "anova")
+# Default method = "kruskal.test" for multiple groups
+ggboxplot(comb_sum_pt, x = "phase", y = "pt",
+          color = "phase", palette = "jco")+
+  stat_compare_means()
+
+
+# Change method to anova
+ggboxplot(comb_sum_pt, x = "phase", y = "pt",
+          color = "phase", palette = "jco")+
+  stat_compare_means(method = "anova")
+
+
+######################
+#  useful bellow for fig 
+######################
+My_Theme_bar1 = theme(
+  panel.border = element_rect(colour="black", fill = NA),
+  strip.text = element_text(size = 4.5),
+  panel.background = element_blank(),
+  plot.title = element_text(color="black", size=8, face="bold"),
+  axis.title.x = element_text(color="black",  size=14, face="bold"),
+  axis.title.y = element_text(color="black",  size=14, face="bold"),
+  axis.text.x =  element_text( size=14, face="bold"),
+  axis.text.y =  element_text( size=14, face="bold"))
+
+ 
+compare_means(pt ~ phase, data = comb_sum_pt,method = "t.test",  ref.group = "HD/late convalescence" )
+
+# add mean_sd 
+  p_sd_ccr7 <-ggboxplot(comb_sum,  x = "phase", y = "pt",
+          color = "phase", palette = "jco",
+          add = "mean_sd",   short.panel.labs = T, legend = "none",
+          xlab="phase",ylab="percentage",outlier.shape = NA) +
+  rotate_x_text(angle = 45,size=14)+      
+    scale_y_continuous(limits = c(0,1.2))+
+  stat_compare_means(method = "anova",  label.x.npc = 0.1 , label.y.npc = 1.1,label.y = 1, size=8)+        # Add global annova p-value
+  stat_compare_means( method = "t.test",ref.group = "HD/late convalescence",hide.ns=T,label="p.signif" ,label.y = 0.8, size=12)    + 
+    My_Theme_bar1 +scale_color_manual(values=c("grey","#C25757", "#44a043"))
+  
+p_sd_ccr7
+  
+
+
+  p_point_ccr7 <- ggboxplot(comb_sum,  x = "phase", y = "pt",
+          color = "phase", palette = "jco",
+            add = "jitter", add.params = list(size =2),short.panel.labs = T, legend = "none",
+            xlab="phase",ylab="percentage",outlier.shape = NA) +
+    rotate_x_text(angle = 45,size=14)+      
+    scale_y_continuous(limits = c(0,1.2))+
+    stat_compare_means(method = "anova",  label.x.npc = 0.1 , label.y.npc = 0.95,label.y = 1.1, size=8)+        # Add global annova p-value
+    stat_compare_means( method = "t.test",ref.group = "HD/late convalescence",hide.ns=T,label="p.signif" ,label.y = 0.85, size=12 ) + 
+    My_Theme_bar1 +scale_color_manual(values=c("grey","#C25757", "#44a043"))
+
+p_point_ccr7
+  
+  
+  
+  
+  
+  
+  
+  #---------------------------------------------------------------
+  # percnetage plot 
+  p_gex_pt1 <- combined_data_gex %>% group_by(gex_annotation,sample,  cell_id_uniq,group)%>%
+    summarise(count=n())  %>%ungroup() %>%
+    ggplot( aes(fill=gex_annotation, y=count, x=sample)) +
+    geom_bar(position="fill", stat = "identity") +labs(title="B cell types by sample time ",
+                                                      x ="Samples", y = "Percentage") +  scale_fill_manual(values = colours)  +My_Theme
+  p_gex_pt1
+  
+  #p_gex_pt1 + facet_wrap(~group,nrow=1) +  scale_x_discrete(drop=F)
+  
+  p_gex_pt1_blank<- p_gex_pt1 + My_Theme_face_wrap_blank_expt_y_stripText
+  p_gex_pt1_blank
+  
+  # nrow=1 combine
+  p_gex_comb <- ggarrange(  p_gex_1 + rremove("xlab")+ rremove("legend")+labs(title=NULL), 
+                            p_gex_pt1+ rremove("xlab")+ rremove("legend")+labs(title=NULL),
+                                         ncol = 2, nrow = 1)
+  p_gex_comb
+  ggsave(filename=paste0(outputPath_plot,"gex_bySample.png"),
+         plot=p_gex_comb, width=length(unique(combined_data_gex$sample))*2, height=12, units="cm",dpi = 300)
+  
+  # with legent
+  # nrow=1 combine
+  p_gex_comb_full <- ggarrange(  p_gex_1 + rremove("xlab")+ rremove("legend") +labs(title=NULL), 
+                            p_gex_pt1+ rremove("xlab") +labs(title=NULL),
+                                         ncol = 2, nrow = 1)
+  p_gex_comb_full
+  ggsave(filename=paste0(outputPath_plot,"gex_bySampleFull.png"),
+         plot=p_gex_comb_full, width=length(unique(combined_data_gex$sample))*2.1, height=12, units="cm",dpi = 300)
+  
+  
+  
+  # nrow=2 combine
+  p_gex_comb_r2 <- ggarrange(  p_gex_1_blank + rremove("xlab")+ rremove("legend")+labs(title=NULL), 
+                               p_gex_pt1_blank+  rremove("legend")+labs(title=NULL),
+                            ncol = 1)
+  p_gex_comb_r2
+  ggsave(filename=paste0(outputPath_plot,"gex_bySample_vertical.png"),
+         plot=p_gex_comb_r2, width=6, height=10, units="cm",dpi = 300)
+  ggsave(filename=paste0(outputPath_plot,"gex_bySample_vertical1.png"),
+         plot=p_gex_comb_r2, width=6, height=12, units="cm",dpi = 300)
+  
+  # nrow=1 combine x-axis blank 
+  p_gex_comb_blank <- ggarrange(  p_gex_1 + rremove("xlab")+ rremove("legend")+labs(title=NULL)+ rremove("x.text"), 
+                            p_gex_pt1+ rremove("xlab")+ rremove("legend")+labs(title=NULL)+ rremove("x.text"),
+                            ncol = 2, nrow = 1)
+  p_gex_comb_blank
+  ggsave(filename=paste0(outputPath_plot,"gex_bySample_blank.png"),
+         plot=p_gex_comb_blank, width=16, height=12, units="cm",dpi = 300)
+  
+  pdf(file=paste0(outputPath_plot,"gex_bySample.pdf"))
+  print(p_gex_1)
+  print(p_gex_pt1)
+  print(p_gex_comb)
+  print(p_gex_comb_blank)
+  dev.off()
+  print(p_gex_1)
+  print(p_gex_pt1)
+  print(p_gex_comb)
+  print(p_gex_comb_blank)
+
+  
+  
+  return(combined_data)
+}
+
+
+
+```
+
+
+
+
+```{r}
+ 
+
+# global variable
+ 
+fileList<- c("HD2B960","HD2B1500","HD2B3600","p16T1B","p18T1","p45T2","p45T5","p36T1","p36T2","p36T4")
+ 
+# Main
+
+combined_timePoint<- combine_sc_multiTime_isoPositive(df_fileList=fileList, outputPath_summary=outputSummary,
+                                             rdsInput_Path=rdsInputPath,outputPath_plot=outputPlot)
+
+
+```
+
+
+
+
+
+
+
+
+# print session infor
+```{r ,results='markup'}
 sessionInfo()
 ```
 
