@@ -796,23 +796,6 @@ dotPlot
 
 
 
-# global variable
-#-------------------------------------------------------------------------------
-
- 
-fileList<- c("HD2B960","HD2B1500","HD2B3600","p16T1B","p18T1","p45T2","p45T5","p36T1","p36T2","p36T4")
- 
-df_fileList=fileList
-outputPath_summary=outputSummary 
-rdsInput_Path=rdsInputPath
-outputPath_plot=outputPlot
- 
-i<- "p16T1B"
-
-
-#-------------------------------------------------------------------------------
-
-
 
 
 
