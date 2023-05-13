@@ -2238,7 +2238,7 @@ combine_sc_multiTime_isoPositive<- function(df_fileList,rdsInput_Path,outputPath
   #---------------------------------------------------------------
   # percnetage plot 
   p_gex_pt1 <- combined_data_gex %>% group_by(gex_annotation,sample,  cell_id_uniq,group)%>%
-    summarise(count=n())  %>%ungroup() %>%
+    dplyr::summarise(count=n())  %>%ungroup() %>%
     ggplot( aes(fill=gex_annotation, y=count, x=sample)) +
     geom_bar(position="fill", stat = "identity") +labs(title="B cell types by sample time ",
                                                        x ="Samples", y = "Percentage") +  scale_fill_manual(values = colours)  +My_Theme
