@@ -5,13 +5,12 @@ date: "14/May/2022"
 output: html_document
 ---
  
-# aims
+# Aims
    - integrated single cell analysis
  
-# Notes: 
+Notes: 
   - All the input and out path need to be changed to your local path 
  
-
 ```{r }
 knitr::opts_chunk$set( echo=T,warning=F,message=F,error=F, results='hide', fig.keep='all',
   comment = "#>", fig.width = 6
@@ -19,10 +18,7 @@ knitr::opts_chunk$set( echo=T,warning=F,message=F,error=F, results='hide', fig.k
 
 ```
 
- 
- 
-  
-# load library 
+Load libraries
 
 ```{r}
 
@@ -40,12 +36,11 @@ source("/home/hohu/Desktop/LinkSeq1/script/linkseqFunctions.R")
 ```
 
 
-# SingleR cell type prediction and split sc for integration
- 
-# global variable 
+SingleR cell type prediction and split sc for integration
 
 ```{r}
-
+ 
+# global variable 
 outputPlot<- "/home/hohu/Desktop/LinkSeq1/result/"
 ifelse(!dir.exists(outputPlot),dir.create(outputPlot, recursive = T),FALSE)
 
@@ -63,19 +58,15 @@ list.files(rdsInputPath)
 
 ```{r}
 
-
 fileList<- c("HD2B1500","HD2B3600","HD2B960","p36T1","p36T2","p36T4","p45T2","p45T5","p16T1B","p18T1")
 newName<- c("HD1","HD2","HD1_stD2","p36D4","p36D45","p36D169","p45D24","p45D164","p16D9","p18D13")
-
-
-
 # MAIN 
 
 combineScBcr<- combineSc_Bcr_singleR(file_list=fileList, output_summary=outputSummary,
                                      inputBcr=bcrInputPath,inputSc=rdsInputPath)
-#######
+####################
 # separate sc 
-#######
+####################
 sapply(combineScBcr, dim)
 
 HD1_sc <- combineScBcr[["HD1"]] 
@@ -104,16 +95,12 @@ sc_combine$sample <- factor(sc_combine$sample, levels = c("HD2","HD1","HD1_stD2"
 
 
  
-# Sc integration 
-integrate sc data using different combination 
--1a.  All sc samples, all cells
+Single cell integration 
 
 ```{r}
 
 
-####################
 # normalization  
-####################
 
 # split the dataset into a list of two seurat objects (stim and CTRL)
 merge_split <- SplitObject(sc_combine, split.by = "sample")
@@ -131,8 +118,7 @@ immune.anchors <- FindIntegrationAnchors(object.list = merge_split.list, anchor.
 # this command creates an 'integrated' data assay
 immune.combined0 <- IntegrateData(anchorset = immune.anchors)
 
-# specify that we will perform downstream analysis on the corrected data note that the
-# original unmodified data still resides in the 'RNA' assay
+# we will perform downstream analysis on the corrected data note that the original unmodified data is in the 'RNA' assay
 DefaultAssay(immune.combined0) <- "integrated"
 
 # Run the standard workflow for visualization and clustering
@@ -150,18 +136,14 @@ table(immune.combined$label.main,immune.combined$sample)
 # save cluster to meta data
 immune.combined$cluster <- Idents(immune.combined)
 
-####################
 # save RDS for downstream pipeline  
-####################
 saveRDS(object =immune.combined, file = paste0(outputSummary,"allSample_sc_BCR_integration.rds"))
 
 
 ```
 
 
-
-
-# pie chart for other cells co-isolated with B cells across infection
+# Pie chart for other immune cells co-isolated with B cells across infection
 
 ```{r}
 
@@ -222,9 +204,6 @@ My_Theme2 = theme(
 # https://stackoverflow.com/questions/42489277/multiple-ggplot-pie-charts-with-whole-pies
 pie_df$sample<- factor(pie_df$sample, levels = c("HD1","HD2","HD1_stD2","p16D9","p18D13","p36D4","p36D45","p45D24","p36D169","p45D164"))
 
-#--------------------------------------------------------------------
- 
-
 pie3<- ggplot(data = pie_df1, aes(x = "", y = percentage, fill =  mail.label )) +
   geom_bar(stat = "identity", position = position_fill()) +
   geom_text(aes(label = ""), position = position_fill(vjust = 0.5)) +
@@ -238,14 +217,13 @@ pie3<- ggplot(data = pie_df1, aes(x = "", y = percentage, fill =  mail.label )) 
 pie3
 
 
-
 ggsave(filename=paste0(outputPlot,"pie3.png"),
        plot=pie3, width=round(length(unique(immune.combined$sample)))*2.8, height=round(length(unique(immune.combined$sample)))*2.8, units="cm",dpi = 300)
 
 ```
 
 
-# grouped barplot for other cells co-isolated with B cells across infection
+# Grouped barplot for other immune cells co-isolated with B cells across infection
  
 ```{r}
  
@@ -255,12 +233,10 @@ sampleColours = c("HD1_stD2"="#6a51a3","HD1"="blue", "HD2"="#33658A",
                   "p45D24"="#F26157","p45D164"="#20b2aa","p16D9"="mistyrose2","p18D13"="mediumorchid2")
 
 # show_col(sampleColours)
-
 sampleColours2 = c("HD_stimulate"="#6a51a3", "Acute infection"="grey", "Convalescence"="#F26157",
                   "HD/Post COVID-19"="#33a02c")
 
 # show_col(sampleColours2)
- 
 head(pie_df)
 pie_df2<- pie_df1  
 pie_df2$phase_main <- factor(pie_df2$phase_main , levels = c("HD_stimulate", "Acute infection","Convalescence" ,"HD/Post COVID-19"))
@@ -298,7 +274,6 @@ p<- ggplot(pie_df_erBar, aes(x=mail.label, y=percentage, fill=phase_main)) +
 # print(p)
 
 # Finished bar plot
-
 My_Theme_bar2 = theme(
   panel.border = element_rect(colour="black", fill = NA),
   strip.text = element_text(size = 4.5),
@@ -345,14 +320,9 @@ ggsave(filename=paste0(outputPlot,"nonB_coIsolated_immuneCells_withLable.png"),
 ```
 
 
+# Check the nFeature for DC cells and compare to other cells to check the possibility of doublets
 
-
-
-
- 
-# check the nFeature for DC cells and compare to other cells to check the possibility of doublets
-
-global variable
+Global variable
 ```{r}
 # save those output figs into a separate folder due to the large amount of figs generated
 outputPlot_doublets<- paste0(outputPlot,"doublets/") 
@@ -360,7 +330,6 @@ ifelse(!dir.exists(outputPlot_doublets),dir.create(outputPlot_doublets),FALSE)
 ```
 
 Main 
-
 
 ```{r}
 
@@ -459,7 +428,76 @@ dev.off()
 ```
 
 
+# Supplementary fig2-i(19May 2023)
+Top10 DEG for different type of immune cells in p36D4 sample which shown highest co-isolation of other immune cells.
 
+```{r}
+
+
+  p36T1_rna <- readRDS(paste0(rdsInputPath,"p36T1.rds"))
+ # filter cells 
+  sub.rna <- subset(p36T1_rna, subset = nFeature_RNA > 150 & nFeature_RNA < 2000& percent.mt < 15 )
+ # load ref data for singleR prediction
+  ref_Monaco <- MonacoImmuneData()
+
+  pred.gex_db<-SingleR(GetAssayData(sub.rna, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.main)
+  
+  pred.gex_db_fine<-SingleR(GetAssayData(sub.rna, assay = "RNA", slot = "data"), ref = ref_Monaco, labels = ref_Monaco$label.fine)
+    
+     # assign the label.main to p36D1 meta data
+    sub.rna$label.main<- pred.gex_db$labels
+    sub.rna$label.fine <- pred.gex_db_fine$labels
+    # my prediction
+    table(sub.rna$label.main)
+    table(sub.rna$label.fine)
+
+  
+  # normalization
+  rna2 <- NormalizeData(sub.rna, normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  rna2  <- FindVariableFeatures(rna2 , selection.method = "vst", nfeatures = 2000)
+  # Scaling the data
+  # PCA AND UMAP
+  all.genes <- rownames(rna2)
+  rna2 <- ScaleData(rna2, features = all.genes)
+  
+  rna2 <- RunPCA(rna2, features = VariableFeatures(object = rna2))
+  # JackStrawPlot , ElbowPlot and UMAP
+  ElbowPlot(rna2)
+  
+  rna2 <- FindNeighbors(rna2, dims = 1:15)
+  rna2 <- FindClusters(rna2, resolution = 0.5)
+  
+  # Look at cluster IDs of the first 5 cells
+  head(Idents(rna2), 5)
+
+  rna2 <- RunUMAP(rna2, dims = 1:12)
+  
+  
+  Idents(rna2)<- rna2$label.main
+  # remove cells type < 5 
+  cell.fre <- as.data.frame(table(rna2$label.main)) %>% filter(Freq>5)
+  major.sc <- subset(rna2, idents=cell.fre$Var1)
+  
+
+# find markers for different cell types 
+
+Idents(major.sc)<- major.sc$label.main
+pbmc.markers <- FindAllMarkers(major.sc, only.pos = TRUE , min.pct = 0.15, logfc.threshold = 0.1)
+
+top10_DEG<- pbmc.markers %>%
+    group_by(cluster) %>%
+    slice_max(n = 10, order_by = avg_log2FC)
+
+# heat map
+heatmap_cluster<- DoHeatmap(major.sc, features = top10_DEG$gene) 
+heatmap_cluster
+ggsave(filename=paste0(outputPlot,"p36D1_heatmap_top10_DEG_by_cellType.png"),
+          plot=heatmap_cluster, width=35, height=25, units="cm",dpi=300)
+
+
+
+```
 
 
 # HD1_stD2 isotype dotplot
@@ -494,11 +532,9 @@ Idents(immune.combined)<- immune.combined$sample
  
 ```
 
- 
 
 
-
--1b.  All sc samples, but pure B cells for both fine and main labels
+# Pure B cells for both fine and main labels
 ```{r}
  
 ####################
@@ -526,10 +562,10 @@ table(fine_sc$SingleR.labels,fine_sc$sample)
 
 
 ####################
-# normlization  
+# normalization  
 ####################
 
-# split the dataset into a list of two seurat objects (stim and CTRL)
+# split the data-set into a list of two seurat objects (stim and CTRL)
 merge_split <- SplitObject(fine_sc, split.by = "sample")
 
 # normalize and identify variable features for each dataset independently
@@ -573,14 +609,7 @@ saveRDS(object =immune.combinedB, file = paste0(outputSummary,"allSample_pureB_B
 ```
 
 
-
-
-
-
-
-
-
-
+# Check the BCR gene expression 
 
 ```{r}
 
@@ -590,11 +619,7 @@ table(immune.combinedB$SingleR.labels,immune.combinedB$sample)
 Idents(immune.combinedB) <- immune.combinedB$sample
 
 table(Idents(immune.combinedB) )
-```
 
-# check the BCR gene expression 
-
-```{r}
 outputPlot_dot_isoFull<- paste0(outputPlot,"selectedMarkerPlot/isoFull/")
 ifelse(!dir.exists(outputPlot_dot_isoFull),dir.create(outputPlot_dot_isoFull, recursive = T),FALSE)
 
@@ -611,9 +636,6 @@ featureList_isoFull <- c( "IGHD","IGHM","IGHA1","IGHA2","IGHE","IGHG1","IGHG2","
 
 #  Accute infection analysis
 
-
-
-# read acute sc 
 ```{r}
 
 acuteInfection_rdsInputPath<-  "/home/hohu/Desktop/LinkSeq1/data/sc/acuteInfec/"
@@ -627,20 +649,16 @@ for(i in seq_along(acuteInfection_list)){
   combinedSc[[i]]<-rna
 }
 combinedSc <- setNames(combinedSc,acuteInfection_list)
-#######
-# seperate sc 
-#######
+
 sapply(combinedSc, dim)
 p16D9_sc <- combinedSc[["p16T1B"]]
 p18D13_sc <- combinedSc[["p18T1"]]
 p36D4_sc <- combinedSc[["p36T1"]]
 
-
 ```
 
 
-
-## singleR prediction for early infection samples
+Cell type prediction for early acute infection samples using SingleR package
 
 ```{r}
  
@@ -685,7 +703,7 @@ sub_acuteInfection$label.fine<- pred.gex_eInf_fine$labels
 ```
 
 
-# normalization
+Normalization
 
 ```{r}
 norSub_acuteInfection <- NormalizeData(sub_acuteInfection, normalization.method = "LogNormalize", scale.factor = 10000)
@@ -759,17 +777,12 @@ ggsave(filename=paste0(outputPlot,"acuteInfecMerg_DimPlot_labelMain_LB_CombTcell
 
 
 
-
-
-
-
+# BCR isotype gene expression for B cells from acute infection samples
 
 ```{r}
  
 ridP<- RidgePlot(object =major.sc_mainLabel,  features =c("IGHM"))
-ridP
 
- 
 # dot plot
    My_Theme_Dot = theme(
     plot.title = element_blank(),
@@ -798,14 +811,10 @@ dotPlot
 
 
 
-
-figure-4g
-
-
+# B cell subsets composition and dynamics over time in healthy donors and COVID-19 patients. 
 
 ```{r}
  
-
 # global variable
  
 fileList<- c("HD2B960","HD2B1500","HD2B3600","p16T1B","p18T1","p45T2","p45T5","p36T1","p36T2","p36T4")
@@ -818,6 +827,7 @@ combined_timePoint<- combine_sc_multiTime_isoPositive(df_fileList=fileList, outp
 
 ```
 
+# Identification of dendritic cells primed B cells.
 supplementary-2
 
 ```{r}
@@ -855,8 +865,6 @@ for(i in seq_along(unique(sc_combine_all$sample))){
   ggsave(filename=paste0(outputPlot_doublets,sample.i, "nFeature.png"), 
        plot=pvF, width=12, height=10, units="cm",dpi = 300)
   
-  
- 
   
   #################
   # Further subset the BCR expression DC together with B cells
